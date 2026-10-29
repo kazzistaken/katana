@@ -1,0 +1,27 @@
+{
+  "name": "katana",
+  "productName": "Katana",
+  "version": "0.1.0",
+  "description": "Katana: each task a real Claude Code, Codex or shell session, with an agent above them",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node scripts/run-tests.mjs"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^38.8.6"
+  },
+  "dependencies": {
+    "@fontsource/atkinson-hyperlegible-mono": "^5.3.0",
+    "@fontsource/atkinson-hyperlegible-next": "^5.3.0",
+    "@fontsource/geist-mono": "^5.3.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "koffi": "^2.16.3",
+    "lucide-static": "^1.63.0",
+    "node-pty": "^1.1.0",
+    "simple-icons": "^16.36.0"
+  }
+}

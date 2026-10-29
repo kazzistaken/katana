@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: file:; frame-src file:; connect-src 'self' wss://api.deepgram.com; media-src 'self' blob: file:"
+    />
+    <title>Katana</title>
+    <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="team.css" />
+  </head>
+  <body data-motion="full" data-theme="graphite">
+    <div class="shell">
+      <aside id="sidebar" class="panel sidebar" aria-label="Tasks"></aside>
+      <div class="panel main">
+        <header class="topbar" id="topbar">
+          <span class="top-label" id="top-label"></span>
+          <div class="top-actions">
+            <button class="top-link" id="open-external" type="button" hidden>Open in browser</button>
+            <button class="icon" id="view-avatar" type="button" title="Katana" aria-label="Katana" aria-pressed="false" hidden></button>
+            <button class="icon" id="view-chat" type="button" title="Task" aria-label="Task" aria-pressed="true"></button>
+            <button class="icon" id="view-file" type="button" title="File" aria-label="File" aria-pressed="false" hidden></button>
+            <button class="icon" id="view-app" type="button" title="Run app" aria-label="Run app" aria-pressed="false" hidden></button>
+            <button class="icon" id="view-terminal" type="button" title="Terminal (Ctrl+`)" aria-label="Terminal" aria-pressed="false"></button>
+          </div>
+        </header>
+        <main id="chat" class="pane chat"></main>
+        <section id="terminal" class="pane terminal" aria-label="Terminal" hidden></section>
+        <section id="settings" class="pane settings-page" aria-label="Settings" hidden></section>
+      </div>
+    </div>
+
+    <div id="overlay" class="overlay" hidden></div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

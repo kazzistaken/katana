@@ -1,0 +1,331 @@
+/*
+ * Hierarchy mode: the prompt bar's Single agent | Hierarchy toggle, the
+ * team's lines in the chat, and the team tree in the terminal pane
+ * (teamview.js). Kept apart from styles.css; uses its theme variables.
+ */
+
+/* ---------------------------- mode toggle ----------------------------- */
+
+.foot-meta {
+  align-items: center;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  height: 19px;
+  margin-right: 8px;
+  padding: 1px;
+  border: 1px solid var(--line-mid);
+  border-radius: 4px;
+}
+
+.mode-opt {
+  padding: 0 7px;
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: -0.01em;
+  transition: background var(--t-quick) ease, color var(--t-quick) ease;
+}
+
+.foot-meta .mode-opt:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.foot-meta .mode-opt.is-on {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.mode-toggle.is-locked {
+  opacity: 0.5;
+}
+
+/* New task: the same row sits over the box. */
+.newtask > .foot-meta {
+  margin: 18px 0 8px;
+}
+
+/* ---------------------------- chat: team lines ------------------------------ */
+
+.ex-team {
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+  padding-left: 1px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.ex-team + .ex-team {
+  margin-top: 4px;
+}
+
+.ex-team-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ex-team-row b {
+  flex: none;
+  color: var(--body);
+  font-weight: 700;
+}
+
+.ex-team-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ex-team .status-dot,
+.team-state .status-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+}
+
+/* Passed or merged: filled; finished: half there. */
+.status-dot.is-pass {
+  border-color: var(--text);
+  background: var(--text);
+}
+
+.status-dot.is-done {
+  border-color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
+/* ----------------------------- team tree ------------------------------ */
+
+.team {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.team-tree {
+  --g: 14px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 46px;
+  min-height: 100%;
+  padding: 16px 6px 10px 0;
+}
+
+.team-wires {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.team-wires path {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1.2;
+}
+
+.team-wires path.is-lit {
+  stroke: color-mix(in srgb, var(--text) 80%, transparent);
+  stroke-dasharray: 4 5;
+  animation: team-flow 0.9s linear infinite;
+}
+
+@keyframes team-flow {
+  to {
+    stroke-dashoffset: -9;
+  }
+}
+
+body[data-motion="off"] .team-wires path.is-lit,
+body[data-motion="reduced"] .team-wires path.is-lit {
+  animation: none;
+  stroke-dasharray: none;
+}
+
+.team-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  gap: var(--g);
+}
+
+/* Each verifier sits over a pair of workers; the trunk runs down between them. */
+.team-row.is-verifiers {
+  gap: calc((100% - 3 * var(--g)) / 4 + 2 * var(--g));
+}
+
+.team-node {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: calc((100% - 3 * var(--g)) / 4);
+  min-width: 0;
+  padding: 9px 10px 10px;
+  border: 1px solid var(--line-mid);
+  border-radius: 6px;
+  background: var(--panel);
+  text-align: left;
+  transition: border-color var(--t-quick) ease;
+}
+
+.team-row.is-leader .team-node {
+  width: calc((100% - 3 * var(--g)) / 2 + var(--g));
+}
+
+.team-node:hover {
+  border-color: var(--line-strong);
+}
+
+.team-node[data-state="working"] {
+  border-color: color-mix(in srgb, var(--text) 42%, var(--line-mid));
+}
+
+.team-node.is-needs {
+  border-color: var(--text);
+}
+
+.team-node[data-state="failed"] {
+  border-color: color-mix(in srgb, var(--rose) 60%, var(--line-mid));
+}
+
+.team-node[data-state="idle"] .team-screen {
+  opacity: 0.55;
+}
+
+.team-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.team-role {
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.team-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.team-node[data-state="failed"] .team-state {
+  color: var(--rose);
+}
+
+.team-sub {
+  min-height: 1.35em;
+  overflow: hidden;
+  color: var(--body);
+  font-size: 10.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.team-node[data-state="idle"] .team-sub {
+  color: var(--faint);
+}
+
+.team-screen {
+  position: relative;
+  height: 104px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.team-row.is-leader .team-screen {
+  height: 132px;
+}
+
+.team-screen-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.team-term {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.team-term .xterm-viewport {
+  overflow: hidden !important;
+  scrollbar-width: none;
+}
+
+.team-term .xterm,
+.team-term .xterm-viewport,
+.team-term .xterm-scrollable-element {
+  background: var(--panel) !important;
+}
+
+/* One member full size: typed into. */
+.team-full {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.team-full-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.team-full-bar .key-btn {
+  height: 24px;
+}
+
+.team-full-label {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.team-full-state {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.team-full-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.team-term.is-full {
+  inset: 0;
+  transform: none;
+  pointer-events: auto;
+}

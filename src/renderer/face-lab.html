@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; media-src 'self' blob: file:"
+    />
+    <title>Katana · face lab</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      body { overflow: auto; padding: 18px 22px; color: var(--text); background: var(--desk); }
+      .lab { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: start; }
+      .lab-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; align-items: center; }
+      .lab-bar button { padding: 5px 10px; border: 1px solid var(--line-mid); border-radius: var(--r-sm); background: var(--raised); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+      .lab-bar button[aria-pressed="true"] { border-color: var(--text); }
+      .lab-bar .sep { width: 1px; height: 20px; background: var(--line-mid); margin: 0 6px; }
+      .lab-main { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+      .lab-main .agent-portrait { height: 560px; }
+      .lab-label { font-size: 13px; font-weight: 700; min-height: 1.4em; }
+      .lab-grid { display: grid; grid-template-columns: repeat(5, 110px); gap: 12px 10px; }
+      .lab-card { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); text-align: center; cursor: pointer; }
+      .lab-card.is-on { color: var(--text); }
+      .lab-sizes { display: flex; gap: 18px; align-items: end; margin-top: 18px; font-size: 11px; color: var(--muted); }
+      .lab-sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+      h2 { font-size: 12px; margin: 22px 0 10px; color: var(--muted); font-weight: 700; }
+      .lab-strip { display: flex; flex-wrap: wrap; gap: 6px 3px; max-width: 1180px; font-size: 9.5px; color: var(--muted); }
+      .lab-strip figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+      #strip-text { width: 520px; padding: 4px 8px; background: var(--raised); color: var(--text); border: 1px solid var(--line-mid); border-radius: var(--r-sm); font: inherit; font-size: 12px; }
+    </style>
+  </head>
+  <body data-motion="full" data-theme="graphite">
+    <div class="lab-bar" id="bar"></div>
+    <div class="lab">
+      <div class="lab-main" id="main"></div>
+      <div>
+        <h2>Mouth shapes (each held)</h2>
+        <div class="lab-grid" id="grid"></div>
+        <h2>Sizes, and her picture (the fallback)</h2>
+        <div class="lab-sizes" id="sizes"></div>
+      </div>
+    </div>
+    <h2>Lip sync, frame by frame (ms, sound · shape)</h2>
+    <input id="strip-text" aria-label="Sentence for the strip" />
+    <div class="lab-strip" id="strip"></div>
+    <script type="module" src="js/facelab.js"></script>
+  </body>
+</html>
