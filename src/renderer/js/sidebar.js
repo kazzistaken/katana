@@ -22,6 +22,7 @@ export function initSidebar(ctx) {
   const { store, api } = ctx;
   let menu = null;
   let showDone = false;
+  let lastDrawn = '';
 
   /* ------------------------------ actions ----------------------------- */
 
@@ -105,6 +106,12 @@ export function initSidebar(ctx) {
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeMenu();
+    else if (menu && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      event.preventDefault();
+      const items = [...menu.querySelectorAll('button')];
+      const at = items.indexOf(document.activeElement);
+      items[(at + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    }
   });
 
   /* ------------------------------ parts ------------------------------- */
@@ -247,12 +254,19 @@ export function initSidebar(ctx) {
     const before = rowTops();
     const open = store.openTasks().sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
     const done = showDone ? store.state.tasks.filter((task) => task.doneAt).sort((a, b) => b.doneAt - a.doneAt) : [];
-    list.replaceChildren(
-      ...open.map(taskRow),
-      ...(open.length ? [] : [el('p', { class: 'side-empty', text: store.state.projects.length ? 'No open tasks.' : 'Add a folder to start.' })]),
-      ...(done.length ? [el('p', { class: 'side-section', text: 'Done' }), ...done.map(taskRow)] : [])
-    );
-    slideMoved(before);
+    // Rebuilding on every state change (a working task changes it constantly) swallows a click
+    // whose press and release straddle the rebuild: only redraw when a row would look different.
+    const rows = [...open, ...done].map((t) => [t.id, t.title, t.kind, t.projectId, t.unread, t.doneAt, t.merged, Boolean(t.worktree), ctx.stateOf(t.id), ctx.activityOf(t.id)]);
+    const drawn = JSON.stringify([rows, ctx.current(), store.state.projects.length, document.body.dataset.rail, showDone, open.length]);
+    if (drawn !== lastDrawn) {
+      lastDrawn = drawn;
+      list.replaceChildren(
+        ...open.map(taskRow),
+        ...(open.length ? [] : [el('p', { class: 'side-empty', text: store.state.projects.length ? 'No open tasks.' : 'Add a folder to start.' })]),
+        ...(done.length ? [el('p', { class: 'side-section', text: 'Done' }), ...done.map(taskRow)] : [])
+      );
+      slideMoved(before);
+    }
     renderFoot();
     agent.classList.toggle('is-active', ctx.viewType() === 'agent');
     const waiting = open.filter((t) => t.unread || ctx.stateOf(t.id) === 'needs').length;

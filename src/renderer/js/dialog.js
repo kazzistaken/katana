@@ -5,12 +5,17 @@ import { $, el } from './util.js';
  * promise; Escape or a click outside cancels. Only one is open at a time.
  */
 
+// The dialog on screen, so a second one cancels it instead of stacking its key handler over it.
+let dismissOpen = null;
+
 function open(card, onCancel) {
+  dismissOpen?.();
   const overlay = $('#overlay');
   const previous = document.activeElement;
   overlay.replaceChildren(card);
   overlay.hidden = false;
   const close = () => {
+    if (dismissOpen === cancel) dismissOpen = null;
     overlay.hidden = true;
     overlay.replaceChildren();
     document.removeEventListener('keydown', onKey, true);
@@ -23,6 +28,11 @@ function open(card, onCancel) {
       onCancel();
     }
   };
+  const cancel = () => {
+    close();
+    onCancel();
+  };
+  dismissOpen = cancel;
   document.addEventListener('keydown', onKey, true);
   overlay.onpointerdown = (event) => {
     if (event.target === overlay) {
