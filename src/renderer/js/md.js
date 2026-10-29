@@ -68,6 +68,13 @@ export function blocks(text) {
       out.push(el('pre', { class: 'md-table', text: rows.filter((row) => !/^\|[\s:|-]+\|$/.test(row)).join('\n') }));
       continue;
     }
+    // (Before bullets: "* * *" and "- - -" are rules, not lists.)
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
+      endPara();
+      endList();
+      out.push(el('hr', { class: 'md-rule' }));
+      continue;
+    }
     const bullet = line.match(/^(\s*)(?:[-*+•]|(\d+)[.)])\s+(.*)$/);
     if (bullet) {
       endPara();

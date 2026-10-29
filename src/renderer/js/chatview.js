@@ -792,7 +792,7 @@ export function initChatView(ctx) {
   stage.addEventListener(
     'wheel',
     (event) => {
-      if (event.deltaY >= 0 || stage.scrollTop > 0 || !shownFrom || view.type === 'new') return;
+      if (event.deltaY >= 0 || stage.scrollTop > 0 || !shownFrom || view.type === 'new' || (view.type === 'agent' && agentMode === 'avatar')) return;
       const height = stage.scrollHeight;
       shownFrom -= 1;
       const current = task();
@@ -1026,7 +1026,9 @@ export function initChatView(ctx) {
     if (now.task) {
       store.patchTask(now.task.id, { [which]: value });
       // A model change reaches a running session at once, as Claude Code's /model.
-      if (which === 'model' && tasks.get(now.task.id).running) api.task.say(now.task.id, `/model ${value}`);
+      // (Only between turns: typed mid-turn it would answer a question or become a note to Claude.)
+      const live = tasks.get(now.task.id);
+      if (which === 'model' && now.task.kind === 'claude' && live.running && live.state === 'idle') api.task.say(now.task.id, `/model ${value}`);
     } else store.setSetting(now.keys[which === 'model' ? 0 : 1], value);
     renderMeta();
   }
@@ -1246,8 +1248,11 @@ export function initChatView(ctx) {
     if (t) tasks.load(t);
     setMode(t?.viewFile && mode === 'file' ? 'file' : mode === 'app' && t && appPane.has(t.id) ? 'app' : 'chat');
     render();
-    if (t && t.kind === 'claude' && !(await ctx.hasClaude())) setBlocked('Claude Code not found. Install it and sign in, then restart.');
-    else if (t && !(await api.folder.exists(t.cwd))) setBlocked(`Folder not found: ${t.cwd}`);
+    const missingClaude = t && t.kind === 'claude' && !(await ctx.hasClaude());
+    const missingFolder = t && !missingClaude && !(await api.folder.exists(t.cwd));
+    if (view !== next) return; // another task opened while this checked
+    if (missingClaude) setBlocked('Claude Code not found. Install it and sign in, then restart.');
+    else if (missingFolder) setBlocked(`Folder not found: ${t.cwd}`);
     if (!blocked) input.focus();
   }
 
