@@ -89,8 +89,8 @@ function createHeadless({ userDataDir, core, agent, notify }) {
   }
 
   /** Open the task's session, as the window would. */
-  function startTask(store, task, prompt = '') {
-    const reply = core.start({
+  async function startTask(store, task, prompt = '') {
+    const reply = await core.start({
       id: task.id,
       kind: task.kind,
       cwd: task.cwd,
@@ -193,15 +193,15 @@ function createHeadless({ userDataDir, core, agent, notify }) {
         const { settings } = store.state;
         const task = store.newTask(project.id, { kind: agentKind, mode: lead ? 'hierarchy' : 'single', title: label, worktree: tree, model: MODEL_ALIAS[model] ?? (lead ? settings.managerModel : undefined), effort: effort ?? (lead ? settings.managerEffort : undefined) });
         await store.flush();
-        startTask(store, task, value);
+        await startTask(store, task, value);
         return { id: task.id, title: task.title, folder: project.name };
       }),
     send_to_task: ({ task: id, text }) =>
-      withStore((store) => {
+      withStore(async (store) => {
         const task = need(store, id);
         if (task.doneAt) store.markDone(task.id, false);
         store.patchTask(task.id, { updatedAt: Date.now() });
-        if (!core.running().includes(task.id)) startTask(store, task, String(text || ''));
+        if (!core.running().includes(task.id)) await startTask(store, task, String(text || ''));
         else {
           if (live().get(task.id)?.state === 'needs') throw new Error('It is asking something first: read_terminal, then press_keys if the user said what to choose.');
           core.say(task.id, String(text || ''));
@@ -238,7 +238,7 @@ function createHeadless({ userDataDir, core, agent, notify }) {
         const task = need(store, id);
         core.kill(task.id);
         await wait(500);
-        startTask(store, task);
+        await startTask(store, task);
         return { restarted: true };
       }),
     rename_task: ({ task: id, title }) =>

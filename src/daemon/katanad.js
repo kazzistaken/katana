@@ -162,6 +162,8 @@ server.listen(pipe, () => {
 
 // Nothing running and nobody looking for a while: leave.
 setInterval(() => {
-  if (clients.size || core.running().length) lastBusy = Date.now();
+  // (A reminder or a check still waiting needs the daemon to be here when it comes due.)
+  const waiting = core.agentState();
+  if (clients.size || core.running().length || waiting.reminders.length || waiting.watches.length) lastBusy = Date.now();
   else if (Date.now() - lastBusy > IDLE_EXIT_MS) quit(0);
 }, 30_000);

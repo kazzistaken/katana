@@ -310,7 +310,14 @@ function createTeams({ io, emit = () => {}, save = () => {}, now = () => Date.no
       key = WORKERS.find((k) => !working(team.members[k]) && !holding(team.members[k]));
       if (!key) return { error: 'All four workers are busy or hold unmerged work. Collect, verify and merge first.' };
     }
+    const asked = Boolean(worker);
     return locked(taskId, async () => {
+      // Two assigns at once both saw the same free worker: whoever comes second here picks again.
+      if (working(team.members[key]) || holding(team.members[key])) {
+        if (asked) return { error: `${labelOf(key)} was just given other work. Pick another worker.` };
+        key = WORKERS.find((k) => !working(team.members[k]) && !holding(team.members[k]));
+        if (!key) return { error: 'All four workers are busy or hold unmerged work. Collect, verify and merge first.' };
+      }
       if (team.git === null) team.git = Boolean(await io.isRepo(team.cwd));
       if (!team.git && !claims.length) return { error: 'This folder isn’t a git repository, so workers share it: list the files each one may change (files).' };
       for (const other of WORKERS) {
@@ -451,6 +458,7 @@ function createTeams({ io, emit = () => {}, save = () => {}, now = () => Date.no
     if (!m.verdict || m.verdict.attempt !== m.attempt) return { error: `${labelOf(key)}’s latest work hasn’t been verified. team_verify it first.` };
     if (!m.verdict.pass) return { error: `${labelOf(key)}’s latest work failed verification. team_send_back the fixes, then verify again.` };
     return locked(taskId, async () => {
+      if (m.merged) return { error: `${labelOf(key)}’s work is already merged.` };
       // Its folder goes: every session working in it ends first.
       io.kill(memberId(taskId, key));
       for (const v of VERIFIERS) if (team.members[v].cwd === m.cwd && team.git) io.kill(memberId(taskId, v));
