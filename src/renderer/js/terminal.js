@@ -234,7 +234,12 @@ export function initTerminal(ctx) {
     }
     const buffer = term.buffer.active;
     const out = [];
-    for (let i = 0; i < buffer.length; i += 1) out.push(buffer.getLine(i)?.translateToString(true) ?? '');
+    for (let i = 0; i < buffer.length; i += 1) {
+      const line = buffer.getLine(i);
+      // A line the terminal wrapped is still one line of text.
+      if (line?.isWrapped && out.length) out[out.length - 1] += line.translateToString(true);
+      else out.push(line?.translateToString(true) ?? '');
+    }
     scratch?.dispose();
     while (out.length && !out.at(-1).trim()) out.pop();
     return out.slice(-Math.max(1, lines)).join('\n');

@@ -200,7 +200,7 @@ body[data-motion="reduced"] .team-wires path.is-lit {
   border-color: color-mix(in srgb, var(--rose) 60%, var(--line-mid));
 }
 
-.team-node[data-state="idle"] .team-screen {
+.team-node[data-state="idle"] .team-screen:not(.is-empty) {
   opacity: 0.55;
 }
 
@@ -241,7 +241,7 @@ body[data-motion="reduced"] .team-wires path.is-lit {
 }
 
 .team-node[data-state="idle"] .team-sub {
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .team-screen {
@@ -262,8 +262,8 @@ body[data-motion="reduced"] .team-wires path.is-lit {
   inset: 0;
   display: grid;
   place-items: center;
-  color: var(--faint);
-  font-size: 10px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .team-term {
