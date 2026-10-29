@@ -84,7 +84,7 @@ export function createWake({ api, store, ctx, busy, onWake }) {
         const ms = clip.length * chunkMs;
         if (ms < SHORTEST_MS || ms > LONGEST_MS) return;
         // One at a time, in order; a wake while another is being heard is fine.
-        hearing = hearing.then(() => listen(clip));
+        hearing = hearing.then(() => listen(clip)).catch((error) => console.warn('[wake]', error));
       },
       pauseMs: PAUSE_MS,
     });

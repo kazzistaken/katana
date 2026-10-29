@@ -304,11 +304,19 @@ export function createTalk({ api, agent, store, ctx }) {
     const ending = ENDS.test(text);
     if (ending) talking = false;
     set('thinking');
-    const reply = await agent.ask(text, { kind: 'voice' });
+    const reply = await agent.ask(text, { kind: 'voice' }).catch((error) => ({ error: error?.message || 'Something went wrong.' }));
     if (mine !== turn) return;
     const words = reply.error ? `That didn’t work: ${reply.error}` : reply.reply || 'Done.';
     // Still "thinking" (no words on screen) until her voice is ready.
-    await sayAloud(words, mine);
+    try {
+      await sayAloud(words, mine);
+    } catch (error) {
+      // A sound that wouldn't decode or play must not leave her stuck "thinking".
+      if (mine !== turn) return;
+      unwatch();
+      said = '';
+      ctx.flash(`Katana’s voice: ${error?.message || 'couldn’t play'}`);
+    }
     if (mine !== turn) return;
     if (ending) return off();
     if (talking) return listen(TALK_MS);
