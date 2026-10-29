@@ -652,6 +652,9 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+// A change made in the last moment before closing or reloading is still saved (saves are debounced).
+window.addEventListener('beforeunload', () => store.flush());
+
 // Like a Mac window: the lights go grey while you're in another app.
 window.addEventListener('blur', () => document.body.toggleAttribute('data-blurred', true));
 window.addEventListener('focus', () => document.body.toggleAttribute('data-blurred', false));
