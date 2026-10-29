@@ -138,6 +138,8 @@ function createTasks({ send, hooksDir, settingsFile, found }) {
       flush();
       poll(id, entry);
       clearInterval(entry.poller);
+      // A killed task restarted under the same id: this is the old one's late exit, not the new session's.
+      if (tasks.has(id) && tasks.get(id) !== entry) return;
       tasks.delete(id);
       send('task:exit', { id, code: exitCode });
     });

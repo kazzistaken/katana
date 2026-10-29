@@ -132,6 +132,14 @@ export function createTaskClient({ api, store }) {
   async function start(task, prompt = '', size = {}) {
     const t = get(task.id);
     if (t.running) return { running: true };
+    if (t.starting) return t.starting;
+    t.starting = begin(task, t, prompt, size).finally(() => {
+      t.starting = null;
+    });
+    return t.starting;
+  }
+
+  async function begin(task, t, prompt, size) {
     const reply = await api.task.start({
       id: task.id,
       kind: task.kind,
@@ -162,6 +170,7 @@ export function createTaskClient({ api, store }) {
     const t = get(task.id);
     const value = String(text || '').trim();
     if (!value) return null;
+    if (t.starting) await t.starting; // a second Enter while the session opens: type it in once it is up
     if (!t.running) {
       // A shell takes no first message: it's typed once the shell is up.
       const reply = await start(task, task.kind === 'shell' ? '' : value);
