@@ -258,9 +258,9 @@ export function createLive({ api, store, agent, ctx }) {
     send({ type: 'session.commentary.append', delegation_id: null, content: `Say hi${name ? ` to ${name}` : ''} in a few words and wait.` });
   }
 
-  // Katana spoke up on her own (a task finished, a reminder, a typed reply): say it.
+  // Katana spoke up on her own (a reminder, a typed reply): say it. A finished task is only written.
   agent.on(({ type, text, kind }) => {
-    if (type === 'reply' && kind !== 'voice' && state === 'live') send({ type: 'session.commentary.append', delegation_id: null, content: clip(`Tell the user: ${text}`, APPEND_CHARS) });
+    if (type === 'reply' && kind !== 'voice' && kind !== 'finished' && state === 'live') send({ type: 'session.commentary.append', delegation_id: null, content: clip(`Tell the user: ${text}`, APPEND_CHARS) });
   });
 
   /* --------------------------- connection ---------------------------- */

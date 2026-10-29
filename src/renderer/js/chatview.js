@@ -131,12 +131,13 @@ export function initChatView(ctx) {
   const modelText = el('button', { type: 'button', 'aria-haspopup': 'menu' });
   const effortText = el('button', { type: 'button', 'aria-haspopup': 'dialog' });
   // How the task runs: one Claude session, or a team (a Leader with workers and verifiers).
-  const modeButtons = {
-    single: el('button', { class: 'mode-opt', type: 'button', text: 'Single agent', title: 'One Claude Code session does the work', 'aria-pressed': 'true' }),
-    hierarchy: el('button', { class: 'mode-opt', type: 'button', text: 'Hierarchy', title: 'A Leader splits the work across 4 workers on their own branches; 2 verifiers check it before it’s merged', 'aria-pressed': 'false' }),
-  };
-  const modeToggle = el('div', { class: 'mode-toggle', role: 'group', 'aria-label': 'How this task runs' }, modeButtons.single, modeButtons.hierarchy);
-  const meta = el('div', { class: 'foot-meta' }, modeToggle, modelText, el('span', { class: 'meta-dot', text: '·', 'aria-hidden': 'true' }), effortText);
+  const MODES = [
+    { id: 'single', label: 'Single agent', desc: 'One Claude Code session does the work' },
+    { id: 'hierarchy', label: 'Hierarchy', desc: 'A Leader splits it across workers, verifiers check it' },
+  ];
+  const modeText = el('button', { class: 'mode-pick', type: 'button', 'aria-haspopup': 'menu' });
+  const modeDot = el('span', { class: 'meta-dot', text: '·', 'aria-hidden': 'true' });
+  const meta = el('div', { class: 'foot-meta' }, modeText, modeDot, modelText, el('span', { class: 'meta-dot', text: '·', 'aria-hidden': 'true' }), effortText);
   const composer = el('form', { class: 'composer' }, el('span', { class: 'composer-caret', text: '›', 'aria-hidden': 'true' }), input);
   const foot = el('div', { class: 'foot' }, banner, meta, composer);
   root.replaceChildren(stage, viewer, foot);
@@ -979,15 +980,12 @@ export function initChatView(ctx) {
     const { model, effort } = current();
     const name = MODELS.find((m) => m.id === model)?.name || 'Model';
     const mode = taskMode();
-    modeToggle.hidden = view.type === 'agent' || kind !== 'claude';
-    for (const [key, button] of Object.entries(modeButtons)) {
-      button.classList.toggle('is-on', key === mode);
-      button.setAttribute('aria-pressed', String(key === mode));
-    }
+    modeText.hidden = modeDot.hidden = view.type === 'agent' || kind !== 'claude';
+    modeText.textContent = MODES.find((m) => m.id === mode).label;
     // Not while it works: the switch waits for the turn to end.
     const busy = Boolean(t) && ['working', 'needs'].includes(tasks.get(t.id).state);
-    modeToggle.classList.toggle('is-locked', busy);
-    modeToggle.title = busy ? 'Switch once it’s done (or stop it first)' : t ? 'How this task runs' : 'How new tasks run';
+    modeText.classList.toggle('is-locked', busy);
+    modeText.title = busy ? 'Switch once it’s done (or stop it first)' : t ? 'How this task runs' : 'How new tasks run';
     modelText.textContent = view.type === 'agent' ? `Katana · ${name}` : mode === 'hierarchy' ? `Leader · ${name}` : name;
     modelText.title = view.type === 'agent' ? 'Katana’s model' : mode === 'hierarchy' ? 'The Leader’s model (workers’ and verifiers’: Settings → Hierarchy)' : t ? 'This task’s model' : 'Model for new tasks';
     effortText.textContent = `${(EFFORTS.find((e) => e.id === effort) || EFFORTS[1]).label.toLowerCase()} effort`;
@@ -1009,7 +1007,34 @@ export function initChatView(ctx) {
     render();
     input.focus();
   }
-  for (const [key, button] of Object.entries(modeButtons)) button.addEventListener('click', () => chooseMode(key));
+  modeText.addEventListener('click', () => {
+    if (pop?.anchor === modeText) return closePop();
+    const mode = taskMode();
+    openPop(
+      modeText,
+      el(
+        'div',
+        { class: 'pop mode-pop', role: 'menu', 'aria-label': 'How this task runs' },
+        MODES.map((m) =>
+          el(
+            'button',
+            {
+              class: `menu-item${m.id === mode ? ' is-on' : ''}`,
+              type: 'button',
+              role: 'menuitemradio',
+              'aria-checked': String(m.id === mode),
+              onclick: () => {
+                closePop();
+                if (m.id !== mode) chooseMode(m.id);
+                else input.focus();
+              },
+            },
+            el('span', { class: 'menu-text' }, el('span', { text: m.label }), el('span', { class: 'menu-desc', text: m.desc }))
+          )
+        )
+      )
+    );
+  });
 
   function placeholder() {
     if (view.type === 'agent') return agent.busy() ? 'Add a note for Katana…' : 'Write to Katana…';

@@ -1672,44 +1672,45 @@ body[data-theme="light"] .avatar {
   display: none;
 }
 
-/* The top edge: a few pixels that bring the dock back. */
-.app-edge {
-  position: absolute;
-  top: 0;
-  left: 25%;
-  right: 25%;
-  height: 6px;
-  z-index: 2;
-}
-
+/* The bar along the top: always there, the app below it. */
 .app-dock {
   position: absolute;
-  top: 8px;
-  left: 50%;
+  inset: 0 0 auto;
   z-index: 3;
   display: flex;
   align-items: center;
   gap: 2px;
-  max-width: calc(100% - 32px);
-  height: 30px;
-  padding: 0 4px;
-  border: 1px solid var(--line-mid);
-  border-radius: var(--r);
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
-  box-shadow: 0 6px 20px var(--shadow);
+  height: 36px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
   color: var(--muted);
   font-size: 11px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, -6px);
-  transition: opacity var(--t-quick) ease, transform var(--t-quick) ease;
 }
 
-.app-pane.is-docked .app-dock,
-.app-dock:focus-within {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translate(-50%, 0);
+.app-dock ~ .app-stage {
+  top: 36px;
+}
+
+.app-back {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px 0 7px;
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.app-back:hover {
+  background: var(--hover);
+}
+
+.app-dock-gap {
+  flex: 1;
 }
 
 .app-dock-btn {

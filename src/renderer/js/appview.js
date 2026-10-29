@@ -2,10 +2,9 @@ import { el, icons, truncate } from './util.js';
 
 /**
  * The app viewer (main appview.js runs what's in it): your app, or a web
- * page, filling the main area like a browser, nothing around it. A small
- * dock at the top edge (Back, what runs, its windows, Restart, Stop or
- * Run) shows for a moment when it opens, then waits for the pointer at
- * the top edge. No console and no errors here: the app's errors are kept
+ * page, filling the main area like a browser. A slim bar along the top
+ * stays put: Back on the left, then what runs, its windows, Restart, Stop
+ * or Run. No console and no errors here: the app's errors are kept
  * quietly with the task (apperrors.js) and asked about later.
  *
  * The picture is the window's own, streamed (Windows window capture);
@@ -16,7 +15,6 @@ import { el, icons, truncate } from './util.js';
 const OUTPUT_MAX = 256 * 1024;
 // Colours and cursor moves from the app's console: kept as plain text (for agents).
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g;
-const DOCK_MS = 2500;
 
 export function createAppPane({ api, onBack, onChange }) {
   /** task id → { state, output } */
@@ -30,21 +28,35 @@ export function createAppPane({ api, onBack, onChange }) {
 
   const button = (label, icon, onclick, extra = {}) =>
     el('button', { class: 'app-dock-btn', type: 'button', title: label, 'aria-label': label, onclick, ...extra }, el('span', { class: 'app-dock-icon', html: icon }));
-  const backBtn = button('Back to the task', icons.back, () => onBack?.());
+  const backBtn = el(
+    'button',
+    { class: 'app-back', type: 'button', title: 'Back to the task', onclick: () => onBack?.() },
+    el('span', { class: 'app-dock-icon', html: icons.back }),
+    el('span', { text: 'Back' })
+  );
   const dot = el('span', { class: 'status-dot app-dot', 'aria-hidden': 'true' });
   const label = el('span', { class: 'app-dock-label' });
   const tabs = el('div', { class: 'app-tabs', role: 'tablist' });
   const restartBtn = button('Restart', icons.restart, () => restart());
   const stopBtn = button('Stop', icons.stop, () => stop());
   const runBtn = button('Run', icons.play, () => start());
-  const dock = el('div', { class: 'app-dock', role: 'toolbar', 'aria-label': 'App viewer' }, backBtn, dot, label, tabs, restartBtn, stopBtn, runBtn);
-  // The top edge: the pointer there brings the dock back.
-  const edge = el('div', { class: 'app-edge', 'aria-hidden': 'true' });
+  const dock = el(
+    'div',
+    { class: 'app-dock', role: 'toolbar', 'aria-label': 'App viewer' },
+    backBtn,
+    dot,
+    label,
+    tabs,
+    el('span', { class: 'app-dock-gap' }),
+    restartBtn,
+    stopBtn,
+    runBtn
+  );
 
   const screen = el('div', { class: 'app-screen' });
   const note = el('div', { class: 'app-note', role: 'status' });
   const stage = el('div', { class: 'app-stage', tabindex: '0', 'aria-label': 'Running app' }, screen, note);
-  const element = el('div', { class: 'app-pane', hidden: true }, stage, edge, dock);
+  const element = el('div', { class: 'app-pane', hidden: true }, dock, stage);
 
   const run = () => runs.get(taskId);
   const live = (s) => s && (s.status === 'starting' || s.status === 'running');
@@ -52,18 +64,6 @@ export function createAppPane({ api, onBack, onChange }) {
     if (!runs.has(id)) runs.set(id, { state: null, output: '' });
     return runs.get(id);
   };
-
-  /* -------------------------------- dock -------------------------------- */
-
-  let dockTimer = 0;
-  function peek(ms = DOCK_MS) {
-    element.classList.add('is-docked');
-    clearTimeout(dockTimer);
-    if (ms) dockTimer = setTimeout(() => dock.matches(':hover, :focus-within') || element.classList.remove('is-docked'), ms);
-  }
-  edge.addEventListener('mouseenter', () => peek(0));
-  dock.addEventListener('mouseenter', () => peek(0));
-  dock.addEventListener('mouseleave', () => peek(600));
 
   /* ------------------------------- state ------------------------------- */
 
@@ -114,8 +114,6 @@ export function createAppPane({ api, onBack, onChange }) {
     else if (!tops.length) message = 'Running, with no window open.';
     note.textContent = message;
     note.hidden = !message;
-    // Nothing to see: keep the dock out so Run is at hand.
-    if (message && visible) peek(0);
     layout();
   }
 
@@ -366,13 +364,11 @@ export function createAppPane({ api, onBack, onChange }) {
       }
       render();
       sendSize();
-      peek();
       stage.focus({ preventScroll: true });
     },
     hide() {
       visible = false;
       element.hidden = true;
-      element.classList.remove('is-docked');
       layout();
     },
     /** Runs the app in a task's folder (`command`, else package.json decides), or shows a web page (`page`); `cwd`: a hierarchy worker's worktree instead. */

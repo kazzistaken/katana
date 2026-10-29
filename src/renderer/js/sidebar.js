@@ -95,8 +95,7 @@ export function initSidebar(ctx) {
     document.body.append(menu);
     if (where instanceof Event) {
       where.preventDefault();
-      menu.style.left = `${Math.min(where.clientX, window.innerWidth - menu.offsetWidth - 8)}px`;
-      menu.style.top = `${Math.min(where.clientY, window.innerHeight - menu.offsetHeight - 8)}px`;
+      placeNear(menu, { x: where.clientX, y: where.clientY });
     } else placeNear(menu, where);
     menu.querySelector('button')?.focus();
   }

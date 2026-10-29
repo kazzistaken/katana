@@ -26,16 +26,53 @@ export function truncate(text, max) {
 // Lucide icons and the real Claude mark (generated: scripts/build-icons.mjs).
 export { icons } from './icons.js';
 
-/** Keep an element in the viewport, placed above (or below) an anchor. */
+/**
+ * Keep a fixed popup wholly in the window: above an anchor (else below, else
+ * beside it), or at a point ({ x, y }: a right-click), flipped and clamped to
+ * the edges. Sizes are measured as drawn, so a zoomed popup (larger text) fits
+ * too; one taller than the window scrolls. It follows the window as it resizes.
+ */
 export function placeNear(node, anchor, { gap = 8 } = {}) {
-  const box = anchor.getBoundingClientRect();
-  const width = node.offsetWidth;
-  const height = node.offsetHeight;
-  let top = box.top - height - gap;
-  if (top < 8) top = box.bottom + gap;
-  const left = Math.min(Math.max(8, box.left), window.innerWidth - width - 8);
-  node.style.left = `${left}px`;
-  node.style.top = `${Math.min(top, window.innerHeight - height - 8)}px`;
+  const edge = 8;
+  const place = () => {
+    if (!node.isConnected) return window.removeEventListener('resize', place);
+    node.style.left = '0px';
+    node.style.top = '0px';
+    node.style.maxHeight = '';
+    // CSS zoom scales left/top too: work in drawn pixels, then divide.
+    const zoom = node.getBoundingClientRect().width / node.offsetWidth || 1;
+    const room = window.innerHeight - edge * 2;
+    if (node.offsetHeight * zoom > room) {
+      node.style.maxHeight = `${room / zoom}px`;
+      node.style.overflowY = 'auto';
+    }
+    const width = node.offsetWidth * zoom;
+    const height = node.offsetHeight * zoom;
+    const fitsX = (x) => x >= edge && x + width <= window.innerWidth - edge;
+    const fitsY = (y) => y >= edge && y + height <= window.innerHeight - edge;
+    let left;
+    let top;
+    if (!(anchor instanceof Element)) {
+      left = fitsX(anchor.x) ? anchor.x : anchor.x - width;
+      top = fitsY(anchor.y) ? anchor.y : anchor.y - height;
+    } else {
+      const box = anchor.getBoundingClientRect();
+      left = box.left;
+      top = box.top - height - gap;
+      if (!fitsY(top)) top = box.bottom + gap;
+      if (!fitsY(top)) {
+        // No room above or below: beside it, bottoms lined up.
+        top = box.bottom - height;
+        left = fitsX(box.right + gap) ? box.right + gap : box.left - gap - width;
+      }
+    }
+    left = Math.max(edge, Math.min(left, window.innerWidth - width - edge));
+    top = Math.max(edge, Math.min(top, window.innerHeight - height - edge));
+    node.style.left = `${left / zoom}px`;
+    node.style.top = `${top / zoom}px`;
+  };
+  place();
+  window.addEventListener('resize', place);
 }
 
 // Claude Code's spinner: every .spin on screen turns together.

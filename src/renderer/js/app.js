@@ -261,8 +261,8 @@ store.agentRemote = {
   drop: (id) => api.agent.drop(id),
 };
 const agent = createAgent({ api, store });
-// What she says out loud (a voice conversation says its own).
-agent.on(({ type, text, kind }) => type === 'reply' && kind !== 'voice' && speak(text));
+// What she says out loud (a voice conversation says its own; a finished task is only written).
+agent.on(({ type, text, kind }) => type === 'reply' && kind !== 'voice' && kind !== 'finished' && speak(text));
 
 // A reminder came due (she tells you what it was about, too).
 /**
