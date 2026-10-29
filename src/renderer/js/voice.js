@@ -209,6 +209,11 @@ export function initVoice(ctx) {
     try {
       const result = await window.api.voice.start();
       if (result?.notice) ctx.flash(result.notice);
+      // Stopped (Esc, the mic) while the engine was still starting: don't let it run on unseen.
+      if (!listening) {
+        if (result?.ok && !result.deepgramKey) window.api.voice.stop().catch(() => {});
+        return;
+      }
       if (result?.ok && result.deepgramKey) await startDeepgram(result.deepgramKey);
       else if (result?.ok && result.openai) await startOpenAI();
       else if (result?.ok && result.openrouter) await startOpenRouter();

@@ -204,7 +204,7 @@ export function createLive({ api, store, agent, ctx }) {
     const words = (pending.trim() || heard.trim() || lastSaid).trim();
     pending = '';
     const context = lastSaid ? `\nJust before, Katana's voice had said: "${clip(lastSaid, 300)}"` : '';
-    const reply = await agent.ask(`The user said: "${clip(words, 2000)}"${context}`, { kind: 'voice', log: false });
+    const reply = await agent.ask(`The user said: "${clip(words, 2000)}"${context}`, { kind: 'voice', log: false }).catch((error) => ({ error: error?.message || 'Something went wrong.' }));
     if (state !== 'live') return;
     const text = reply.error ? `That didn't work: ${reply.error}` : reply.reply || 'Done.';
     send({ type: 'session.commentary.append', delegation_id: id, content: clip(text, APPEND_CHARS) });
@@ -285,7 +285,13 @@ export function createLive({ api, store, agent, ctx }) {
           cleanup();
         }
       });
-      mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      // Hung up while the mic was being allowed: close it again, or its light stays on.
+      if (peer !== connection) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      mic = stream;
       for (const track of mic.getAudioTracks()) connection.addTrack(track, mic);
       listenOver(mic);
       // The event channel exists before the offer, so the offer includes it.
@@ -300,6 +306,7 @@ export function createLive({ api, store, agent, ctx }) {
       channel.addEventListener('close', () => state !== 'off' && cleanup());
       await connection.setLocalDescription(await connection.createOffer());
       await gathered(connection);
+      if (peer !== connection) return;
       const reply = await api.live.start({ sdp: connection.localDescription.sdp, voice: store.state.settings.liveVoiceName, instructions: INSTRUCTIONS });
       if (peer !== connection) return;
       if (reply?.error) throw new Error(reply.error);

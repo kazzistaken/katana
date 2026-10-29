@@ -2663,6 +2663,21 @@ body[data-motion="reduced"] .thinking-dots i {
   }
 }
 
+/* The mic's pulse while listening: held still on Reduced (Off already stops everything). */
+body[data-motion="reduced"] .mic-btn.is-listening,
+body[data-motion="reduced"] .talk-btn.is-listening .talk-mic,
+body[data-motion="reduced"] .talk-btn.is-mic .talk-mic {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-motion="full"] .mic-btn.is-listening,
+  body[data-motion="full"] .talk-btn.is-listening .talk-mic,
+  body[data-motion="full"] .talk-btn.is-mic .talk-mic {
+    animation: none;
+  }
+}
+
 /* ------------------------------- motion ------------------------------- */
 
 body[data-motion="reduced"] {
