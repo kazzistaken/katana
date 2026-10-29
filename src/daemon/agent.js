@@ -321,7 +321,9 @@ function createAgent({ userDataDir, readState, snapshot, emit, toolsConfig, aler
     const { text, kind, askId, note, taskId, watchId } = turn;
     data.sessionId = '';
     save();
-    run(text, { kind, askId, note, taskId, watchId, retried: true }).then((reply) => reply?.error && finish({ error: reply.error }));
+    run(text, { kind, askId, note, taskId, watchId, retried: true })
+      .catch((error) => ({ error: error.message || String(error) }))
+      .then((reply) => reply?.error && finish({ error: reply.error }));
   }
 
   // Reminders and checks come due on their own, window or not.

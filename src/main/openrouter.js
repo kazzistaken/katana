@@ -118,7 +118,8 @@ function createOpenRouter({ userDataDir, safeStorage }) {
         reply = await call('/audio/speech', { model: FALLBACK_TTS.model, input: words, voice: FALLBACK_TTS.voice, response_format: 'pcm', instructions: 'Calm, warm and brief, like a colleague sitting next to you.' });
       }
       if (reply.error) return reply;
-      const bytes = Buffer.from(await reply.response.arrayBuffer());
+      const bytes = await reply.response.arrayBuffer().then(Buffer.from, () => null);
+      if (!bytes) return { error: 'Couldn’t read OpenRouter’s speech.' };
       const type = reply.response.headers.get('content-type') || 'audio/pcm';
       // "audio/pcm;rate=24000;channels=1": wrapped as a WAV with what it says.
       if (/^audio\/(pcm|l16)/i.test(type)) {
