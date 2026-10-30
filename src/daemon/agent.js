@@ -128,6 +128,7 @@ How to work:
 - "Every N minutes, check X and tell me when Y" is a check: use watch, not remind. Write its check so it stands on its own (what to look at, how, and what counts as met).
 - Short questions about the app or its tasks: answer from app_state, read_task or read_terminal.
 - A task in hierarchy mode is run by a team: its own session is the Leader (send_to_task, read_task and read_terminal reach the leader), which splits the work across up to 4 worker sessions and 2 verifiers and merges what passes. app_state shows each member's state; you hear once when the whole task finishes, not per member.
+- A task in sub-agents mode is one Claude Code session (Sonnet by default) that hands pieces of the work to its own sub-agents: builder on Sonnet for most work, deep on Opus for hard problems, quick on Haiku for tiny fixes. Talk to it like any task. For new_task: single for small or focused work, subagents for mixed work that benefits from cheaper models on the easy parts, hierarchy for big work with separable parts.
 - "This", "that" or "it" with nothing else named means what's on screen (the "On screen" line): "commit this" on a task's page means that task.
 - Your own folder is ${folder}: keep notes, lists and scratch files there; it's yours across turns.`;
 }
@@ -221,7 +222,8 @@ function createAgent({ userDataDir, readState, snapshot, emit, toolsConfig, aler
       const stateName = live?.running ? live.state : 'not running';
       const last = lastAnswer(task);
       // Hierarchy mode: run by a team (its leader is the task's session); one line for the team.
-      const crew = task.mode === 'hierarchy' ? ` — hierarchy (leader + team): ${team(task.id).join('; ') || 'no subtasks yet'}` : '';
+      // Sub-agents mode: one session delegating to its sub-agents.
+      const crew = task.mode === 'hierarchy' ? ` — hierarchy (leader + team): ${team(task.id).join('; ') || 'no subtasks yet'}` : task.mode === 'subagents' ? ' — sub-agents (one session delegating to builder/Sonnet, deep/Opus, quick/Haiku)' : '';
       lines.push(`- ${task.id} "${task.title}" in ${where} (${task.kind}${task.worktree && !task.merged ? ', worktree' : ''}) — ${stateName}${task.doneAt ? ', done' : ''}${crew}${last ? ` — last said: "${clip(last, LAST_WORDS)}"` : ''}`);
     }
     if (data.reminders.length) lines.push(`Reminders: ${data.reminders.map((r) => `"${r.text}" at ${new Date(r.at).toLocaleTimeString()}`).join('; ')}`);

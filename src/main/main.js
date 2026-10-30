@@ -327,6 +327,8 @@ const daemon = TEST && process.env.XODE2_DAEMON !== '1' ? inProcess({ ...daemonO
 // A task call that couldn't reach the daemon says why, instead of throwing.
 const toDaemon = (method, ...params) => daemon.call(method, ...params).catch((error) => ({ error: error.message }));
 
+// How a Claude task runs: 'single', 'hierarchy' (a team) or 'subagents' (one session delegating to its sub-agents).
+const modeOf = (mode) => (mode === 'hierarchy' || mode === 'subagents' ? mode : 'single');
 ipcMain.handle('task:start', (_event, options = {}) => {
   if (BLOCK_RUNS) return { error: 'Tasks don’t start in test runs' };
   // Only in a trusted folder: checked here and again in the daemon.
@@ -343,8 +345,8 @@ ipcMain.handle('task:start', (_event, options = {}) => {
     effort: options.effort || '',
     bypass: readState()?.settings?.bypassPermissions !== false,
     prompt: String(options.prompt || ''),
-    // Hierarchy mode: this session leads a team (daemon/team.js).
-    mode: options.mode === 'hierarchy' ? 'hierarchy' : 'single',
+    // Hierarchy mode: this session leads a team (daemon/team.js); sub-agents: it delegates to its own (runargs.js).
+    mode: modeOf(options.mode),
     title: String(options.title || ''),
     cols: options.cols,
     rows: options.rows,
@@ -362,7 +364,7 @@ ipcMain.handle('task:snapshot', () => toDaemon('snapshot').then((list) => (Array
 ipcMain.handle('task:quiet', (_event, id) => toDaemon('quiet', String(id)));
 // Hierarchy mode: every team as drawn, switching a task's mode, and ending a team's sessions.
 ipcMain.handle('team:snapshot', () => toDaemon('teamSnapshot').then((list) => (Array.isArray(list) ? list : [])));
-ipcMain.handle('team:mode', (_event, { id, mode } = {}) => toDaemon('teamMode', String(id), mode === 'hierarchy' ? 'hierarchy' : 'single'));
+ipcMain.handle('team:mode', (_event, { id, mode } = {}) => toDaemon('teamMode', String(id), modeOf(mode)));
 ipcMain.handle('team:stop', (_event, { id, forget } = {}) => toDaemon('teamStop', String(id), Boolean(forget)));
 ipcMain.handle('task:history', (_event, { cwd, sessionId } = {}) => toDaemon('history', String(cwd || ''), String(sessionId || '')).then((lines) => (Array.isArray(lines) ? lines : [])));
 // Settings → About: the background process, and stopping every task in it.

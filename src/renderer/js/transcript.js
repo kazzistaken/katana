@@ -9,6 +9,7 @@
 // User lines that are Claude Code's own bookkeeping, not something you wrote.
 const NOT_TYPED = /^\s*(<(command-|local-command|system-reminder|bash-|user-memory|task-notification)|Caveat:)/;
 const INTERRUPTED = /^\[Request interrupted by user/;
+const BACKGROUND_DONE = /^\s*<task-notification>[\s\S]*?<tool-use-id>([^<]+)<\/tool-use-id>[\s\S]*?<status>([^<]+)<\/status>/;
 
 const at = (line) => Date.parse(line.timestamp || '') || 0;
 
@@ -62,11 +63,21 @@ export function createTranscript() {
             const tool = tools.get(block.tool_use_id);
             if (tool) {
               tool.result = { text: resultText(block.content), isError: Boolean(block.is_error) };
+              // A sub-agent's call: the model it really ran on, and whether it went to the background.
+              const meta = line.toolUseResult;
+              if (meta && typeof meta === 'object') Object.assign(tool.result, { model: String(meta.resolvedModel || ''), status: String(meta.status || '') });
               changed = true;
             }
           }
         }
         const text = textOf(content).trim();
+        // A sub-agent that ran in the background finished: its call says how.
+        const note = BACKGROUND_DONE.exec(text);
+        const call = note && tools.get(note[1].trim());
+        if (call?.result) {
+          call.result.status = note[2].trim();
+          changed = true;
+        }
         if (!text || NOT_TYPED.test(text)) continue;
         entries.push(INTERRUPTED.test(text) ? { kind: 'interrupt', text, at: at(line) } : { kind: 'prompt', text, at: at(line) });
         ended = false;
@@ -143,6 +154,26 @@ export function writtenFiles(exchange) {
     if ((tool.name === 'Write' || tool.name === 'NotebookEdit') && file && !files.includes(file)) files.push(file);
   }
   return files;
+}
+
+// Sub-agents mode's sub-agents and their models (runargs.js's SUBAGENTS; test-runargs checks they match).
+export const SUBAGENT_MODELS = { builder: 'claude-sonnet-5-5', deep: 'claude-opus-5-5', quick: 'claude-haiku-5-5' };
+
+/**
+ * The sub-agents a request called (the Agent tool, once Task), in order:
+ * { agent, model, what, state }; state is running, background (sent there
+ * and not back yet), done or failed. The model is the one it ran on once it
+ * started, else the one it was given.
+ */
+export function subagentCalls(exchange) {
+  return exchange.tools
+    .filter((tool) => (tool.name === 'Agent' || tool.name === 'Task') && tool.input?.subagent_type)
+    .map((tool) => {
+      const agent = String(tool.input.subagent_type);
+      const result = tool.result;
+      const state = !result ? 'running' : result.isError || /fail|error|kill/i.test(result.status) ? 'failed' : result.status === 'async_launched' ? 'background' : 'done';
+      return { agent, model: result?.model || tool.input.model || SUBAGENT_MODELS[agent] || '', what: String(tool.input.description || ''), state };
+    });
 }
 
 const GAME_WORDS = /\bgames?\b/i;

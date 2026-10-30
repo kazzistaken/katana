@@ -148,7 +148,7 @@ export function createTaskClient({ api, store }) {
       resume: task.started,
       model: task.model,
       effort: task.effort,
-      // Hierarchy mode: the session is its team's leader.
+      // Hierarchy mode: the session is its team's leader; sub-agents: it delegates to its own.
       mode: task.mode,
       title: task.title,
       prompt,

@@ -1,6 +1,6 @@
 import { el, icons, placeNear, tokens, spinner } from './util.js';
 import { MODELS, EFFORTS } from './store.js';
-import { browserGame, exchanges, writtenFiles } from './transcript.js';
+import { browserGame, exchanges, subagentCalls, writtenFiles } from './transcript.js';
 import { dither, paintScene } from './dither.js';
 import { mountFace, setFaceSource, kick as kickFace } from './face.js';
 import { inline, blocks } from './md.js';
@@ -130,15 +130,27 @@ export function initChatView(ctx) {
   const input = el('textarea', { class: 'composer-input', rows: '1', placeholder: 'Write to Claude…', 'aria-label': 'Write to Claude' });
   const modelText = el('button', { type: 'button', 'aria-haspopup': 'menu' });
   const effortText = el('button', { type: 'button', 'aria-haspopup': 'dialog' });
-  // How the task runs: one Claude session, or a team (a Leader with workers and verifiers).
+  // How the task runs: one Claude session, a team (a Leader with workers and verifiers), or one session delegating to sub-agents.
   const MODES = [
     { id: 'single', label: 'Single agent', desc: 'One Claude Code session does the work' },
+    { id: 'subagents', label: 'Sub-agents', desc: 'One session hands work to Sonnet, Opus or Haiku sub-agents' },
     { id: 'hierarchy', label: 'Hierarchy', desc: 'A Leader splits it across workers, verifiers check it' },
   ];
   const modeText = el('button', { class: 'mode-pick', type: 'button', 'aria-haspopup': 'menu' });
   const modeDot = el('span', { class: 'meta-dot', text: '·', 'aria-hidden': 'true' });
   const meta = el('div', { class: 'foot-meta' }, modeText, modeDot, modelText, el('span', { class: 'meta-dot', text: '·', 'aria-hidden': 'true' }), effortText);
-  const composer = el('form', { class: 'composer' }, el('span', { class: 'composer-caret', text: '›', 'aria-hidden': 'true' }), input);
+  // Dictation: click to start, click again to stop; the words stay in the box for you to send.
+  const dictate = el('button', {
+    class: 'mic-btn dictate-btn',
+    type: 'button',
+    title: 'Dictate (Ctrl+Shift+M)',
+    'aria-label': 'Dictate',
+    'aria-pressed': 'false',
+    html: icons.mic,
+    onpointerdown: (event) => event.preventDefault(),
+    onclick: () => ctx.dictate(),
+  });
+  const composer = el('form', { class: 'composer' }, el('span', { class: 'composer-caret', text: '›', 'aria-hidden': 'true' }), input, dictate);
   const foot = el('div', { class: 'foot' }, banner, meta, composer);
   root.replaceChildren(stage, viewer, foot);
 
@@ -306,11 +318,21 @@ export function initChatView(ctx) {
     return rows.length ? [el('div', { class: 'ex-team' }, rows)] : [];
   }
 
+  /** The sub-agents an exchange called (Sub-agents mode, or any task that used them): who, on which model, for what. */
+  const SUB_DOTS = { running: 'live', background: 'start', done: 'done', failed: 'fail' };
+  const modelName = (id) => MODELS.find((m) => String(id).startsWith(m.id))?.name || String(id).replace(/\[1m\]$/i, '').replace(/^\w/, (c) => c.toUpperCase());
+  function subagentLines(ex) {
+    const calls = subagentCalls(ex);
+    if (!calls.length) return [];
+    const rows = calls.map((c) => teamRow([c.agent, c.model && modelName(c.model)].filter(Boolean).join(' · '), `${c.what || 'a piece of the work'}${c.state === 'failed' ? ' (failed)' : c.state === 'background' ? ' (in the background)' : ''}`, SUB_DOTS[c.state]));
+    return [el('div', { class: 'ex-team ex-subagents', 'aria-label': 'Sub-agents' }, rows)];
+  }
+
   function taskExchange(ex, last, current) {
     const t = tasks.get(current.id);
     // The leader's [team] notes are the daemon's, not yours: shown as a line, not a bubble.
     const node = el('section', { class: 'ex' }, ex.prompts.filter((p) => !TEAM_NOTE.test(p.text)).map((p) => userBubble(p.text)));
-    node.append(...teamLines(current, ex, list[list.indexOf(ex) + 1]));
+    node.append(...teamLines(current, ex, list[list.indexOf(ex) + 1]), ...subagentLines(ex));
     // The leader waits while its team works: say who.
     const crew = last && t.state === 'idle' && ctx.team?.busy(current.id) ? ctx.team.working(current.id) : [];
     if (crew.length) node.append(el('div', { class: 'ex-team is-live' }, teamRow('Team', `working · ${crew.join(', ')}`, 'live')));
@@ -970,6 +992,7 @@ export function initChatView(ctx) {
     if (view.type === 'agent') return { model: settings.agentModel, effort: settings.agentEffort, keys: ['agentModel', 'agentEffort'] };
     if (t) return { model: t.model || settings.taskModel, effort: t.effort || settings.taskEffort, task: t };
     if (draft.kind === 'claude' && settings.taskMode === 'hierarchy') return { model: settings.managerModel, effort: settings.managerEffort, keys: ['managerModel', 'managerEffort'] };
+    if (draft.kind === 'claude' && settings.taskMode === 'subagents') return { model: settings.subagentsModel, effort: settings.taskEffort, keys: ['subagentsModel', 'taskEffort'] };
     return { model: settings.taskModel, effort: settings.taskEffort, keys: ['taskModel', 'taskEffort'] };
   }
 
@@ -986,18 +1009,26 @@ export function initChatView(ctx) {
     const busy = Boolean(t) && ['working', 'needs'].includes(tasks.get(t.id).state);
     modeText.classList.toggle('is-locked', busy);
     modeText.title = busy ? 'Switch once it’s done (or stop it first)' : t ? 'How this task runs' : 'How new tasks run';
-    modelText.textContent = view.type === 'agent' ? `Katana · ${name}` : mode === 'hierarchy' ? `Leader · ${name}` : name;
-    modelText.title = view.type === 'agent' ? 'Katana’s model' : mode === 'hierarchy' ? 'The Leader’s model (workers’ and verifiers’: Settings → Hierarchy)' : t ? 'This task’s model' : 'Model for new tasks';
+    modelText.textContent = view.type === 'agent' ? `Katana · ${name}` : mode === 'hierarchy' ? `Leader · ${name}` : mode === 'subagents' ? `Main · ${name}` : name;
+    modelText.title =
+      view.type === 'agent'
+        ? 'Katana’s model'
+        : mode === 'hierarchy'
+          ? 'The Leader’s model (workers’ and verifiers’: Settings → Modes)'
+          : mode === 'subagents'
+            ? 'The main session’s model (its sub-agents: builder on Sonnet, deep on Opus, quick on Haiku)'
+            : t
+              ? 'This task’s model'
+              : 'Model for new tasks';
     effortText.textContent = `${(EFFORTS.find((e) => e.id === effort) || EFFORTS[1]).label.toLowerCase()} effort`;
     effortText.title = t ? 'Takes effect when the task next starts' : 'How hard it thinks';
     input.placeholder = placeholder();
   }
 
-  /** 'single' or 'hierarchy': the open task's, or new tasks'. */
+  /** 'single', 'hierarchy' or 'subagents': the open task's, or new tasks'. */
   function taskMode() {
-    const t = task();
-    if (t) return t.mode === 'hierarchy' ? 'hierarchy' : 'single';
-    return store.state.settings.taskMode === 'hierarchy' ? 'hierarchy' : 'single';
+    const mode = task()?.mode ?? store.state.settings.taskMode;
+    return MODES.some((m) => m.id === mode) ? mode : 'single';
   }
 
   async function chooseMode(next) {

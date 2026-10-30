@@ -417,7 +417,7 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
     /** Every team, as windows draw them. */
     teamSnapshot: () => teams.views(),
     /**
-     * A task switching between Single agent and Hierarchy. Only while its
+     * A task switching between Single agent, Hierarchy and Sub-agents. Only while its
      * session isn't working; an idle one closes and resumes in its new role
      * on the next message. Leaving hierarchy stops the members (unmerged
      * branches stay, named in `unmerged`).
@@ -426,9 +426,10 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
       const id = String(taskId);
       const running = tasks.running().includes(id);
       if (running && states.get(id).state !== 'idle') return { error: 'It’s working: wait for it to finish (or stop it), then switch.' };
-      const unmerged = mode === 'hierarchy' ? [] : teams.stopAll(id).unmerged;
+      const next = mode === 'hierarchy' || mode === 'subagents' ? mode : 'single';
+      const unmerged = next === 'hierarchy' ? [] : teams.stopAll(id).unmerged;
       if (running) tasks.kill(id);
-      return { ok: true, mode: mode === 'hierarchy' ? 'hierarchy' : 'single', unmerged, closed: running };
+      return { ok: true, mode: next, unmerged, closed: running };
     },
     /** A task done or deleted: its members' sessions end (`forget`: the team goes too). */
     teamStop: (taskId, forget = false) => teams.stopAll(String(taskId), { forget: Boolean(forget) }),

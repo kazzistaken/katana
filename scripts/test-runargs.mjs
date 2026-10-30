@@ -132,4 +132,41 @@ assert.match(runGuard({ role: 'worker', cwd: 'code\\shop' }, ['C:\\code\\shop'])
   assert.equal(worker.at(-1), 'do it');
 }
 
+{
+  // sub-agents mode: the task's own session gets its sub-agents (per session, --agents JSON) and the routing note
+  const { SUBAGENTS, subagentDefs } = require('../src/main/runargs.js');
+  const found = { claude: { file: 'C:/claude.exe' } };
+  const args = taskCommand({ kind: 'claude', mode: 'subagents', sessionId: 's1', model: 'claude-sonnet-5-5', prompt: 'fix the header', settingsFile: 'h.json', mcpConfig: 'C:/u/viewer/t1.json' }, found).args;
+  const agents = JSON.parse(args[args.indexOf('--agents') + 1]);
+  assert.deepEqual(Object.keys(agents).sort(), ['builder', 'deep', 'quick']);
+  // each on the model that fits, with the 1M context window
+  assert.equal(agents.builder.model, 'claude-sonnet-5-5[1m]');
+  assert.equal(agents.deep.model, 'claude-opus-5-5[1m]');
+  assert.equal(agents.quick.model, 'claude-haiku-5-5[1m]');
+  assert.deepEqual(subagentDefs(), agents);
+  for (const agent of Object.values(agents)) {
+    assert.ok(agent.description.length > 40 && agent.prompt.length > 100);
+    assert.ok(!('tools' in agent)); // they keep every tool the session has (the viewer's too)
+  }
+  // the descriptions route: Sonnet is the default, Opus only hard problems, Haiku only tiny fixes
+  assert.match(agents.builder.description, /default/i);
+  assert.match(agents.deep.description, /hard/i);
+  assert.match(agents.quick.description, /spacing|typo/i);
+  // the main session: told both the viewer and how to route, preferring builder; runs on its own model
+  const told = args[args.indexOf('--append-system-prompt') + 1];
+  assert.match(told, /app_screenshot[\s\S]*Sub-agents mode/);
+  assert.match(told, /builder \(Sonnet\)[\s\S]*deep \(Opus\)[\s\S]*quick \(Haiku\)[\s\S]*When unsure, pick builder/);
+  assert.equal(args[args.indexOf('--model') + 1], 'claude-sonnet-5-5[1m]');
+  assert.equal(args.at(-1), 'fix the header');
+  // resumed in sub-agents mode (a switch from single): the same
+  assert.ok(taskCommand({ kind: 'claude', mode: 'subagents', sessionId: 's1', resume: true }, found).args.includes('--agents'));
+  // other modes and roles: none of it
+  assert.ok(!taskCommand({ kind: 'claude', sessionId: 's1', prompt: 'x' }, found).args.includes('--agents'));
+  assert.ok(!taskCommand({ kind: 'claude', mode: 'hierarchy', role: 'leader', sessionId: 's1' }, found).args.includes('--agents'));
+  assert.ok(!taskCommand({ kind: 'claude', mode: 'subagents', role: 'worker', sessionId: 's1' }, found).args.includes('--agents'));
+  // the chat view's table of sub-agent models (transcript.js) matches
+  const { SUBAGENT_MODELS } = await import('../src/renderer/js/transcript.js');
+  assert.deepEqual(SUBAGENT_MODELS, Object.fromEntries(Object.entries(SUBAGENTS).map(([name, agent]) => [name, agent.model])));
+}
+
 console.log('runargs ok');

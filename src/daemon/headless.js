@@ -114,7 +114,8 @@ function createHeadless({ userDataDir, core, agent, notify }) {
 
   const run = {
     app_state: () =>
-      withStore((store) => {
+      withStore(async (store) => {
+        const { MODE_NAMES } = await load();
         const states = live();
         const { settings, projects, tasks } = store.state;
         return {
@@ -133,6 +134,8 @@ function createHeadless({ userDataDir, core, agent, notify }) {
                 state: s?.running ? s.state : 'not running',
                 doing: s?.state === 'working' && s.tool ? s.tool.desc || s.tool.name : undefined,
                 question: s?.state === 'needs' ? `${s.need === 'asking' ? 'Asking you' : 'Needs permission'}: ${s.message || 'in its terminal.'}` : undefined,
+                model: t.model || undefined,
+                mode: t.kind === 'claude' ? MODE_NAMES[t.mode] : undefined,
                 worktree: t.worktree && !t.merged ? t.worktree.branch : undefined,
                 done: Boolean(t.doneAt) || undefined,
                 last: clip(lastAnswer(t), 400) || undefined,
@@ -178,8 +181,9 @@ function createHeadless({ userDataDir, core, agent, notify }) {
       const shown = text.split('\n').map((line) => line.trimEnd()).filter((line, i, all) => line || (all[i - 1] ?? '') !== '');
       return { running: true, screen: shown.slice(-Math.min(400, Math.max(5, lines))).join('\n') };
     },
-    new_task: ({ folder: name, prompt, title, agent: kind, model, effort, worktree: own, hierarchy = false }) =>
+    new_task: ({ folder: name, prompt, title, agent: kind, model, effort, worktree: own, mode, hierarchy = false }) =>
       withStore(async (store) => {
+        const { taskModeOf } = await load();
         const project = folder(store, name);
         const value = String(prompt || '');
         const agentKind = ['claude', 'codex', 'shell'].includes(kind) ? kind : 'claude';
@@ -189,9 +193,11 @@ function createHeadless({ userDataDir, core, agent, notify }) {
           tree = await worktree.create(project.path, label);
           if (tree?.error) tree = null;
         }
-        const lead = Boolean(hierarchy) && agentKind === 'claude';
+        // A team (hierarchy) or one session delegating to sub-agents: Claude only, each on its own default model.
+        const want = agentKind === 'claude' ? taskModeOf(mode, hierarchy) : 'single';
+        const lead = want === 'hierarchy';
         const { settings } = store.state;
-        const task = store.newTask(project.id, { kind: agentKind, mode: lead ? 'hierarchy' : 'single', title: label, worktree: tree, model: MODEL_ALIAS[model] ?? (lead ? settings.managerModel : undefined), effort: effort ?? (lead ? settings.managerEffort : undefined) });
+        const task = store.newTask(project.id, { kind: agentKind, mode: want, title: label, worktree: tree, model: MODEL_ALIAS[model] ?? (lead ? settings.managerModel : want === 'subagents' ? settings.subagentsModel : undefined), effort: effort ?? (lead ? settings.managerEffort : undefined) });
         await store.flush();
         await startTask(store, task, value);
         return { id: task.id, title: task.title, folder: project.name };

@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createAppTools as windowTools, checkSetting, keyBytes } from '../src/renderer/js/apptools.js';
+import { createAppTools as windowTools, checkSetting, keyBytes, taskModeOf } from '../src/renderer/js/apptools.js';
 
 const require = createRequire(import.meta.url);
 const { TOOLS } = require('../src/main/apptooldefs.js');
@@ -32,6 +32,17 @@ const here = dirname(fileURLToPath(import.meta.url));
   assert.deepEqual(checkSetting('ding', true), { key: 'ding', value: true });
   assert.deepEqual(checkSetting('agentModel', 'opus'), { key: 'agentModel', value: 'claude-opus-5-5' });
   assert.match(checkSetting('taskModel', 'gpt').error, /opus, sonnet, haiku/);
+  // Sub-agents mode: a mode new tasks can run in, with its main session's model
+  assert.deepEqual(checkSetting('taskMode', 'subagents'), { key: 'taskMode', value: 'subagents' });
+  assert.deepEqual(checkSetting('subagentsModel', 'haiku'), { key: 'subagentsModel', value: 'claude-haiku-5-5' });
+  // new_task's mode (hierarchy: true still asks for a team)
+  assert.equal(taskModeOf('subagents'), 'subagents');
+  assert.equal(taskModeOf('hierarchy'), 'hierarchy');
+  assert.equal(taskModeOf(undefined, true), 'hierarchy');
+  assert.equal(taskModeOf('single', true), 'hierarchy');
+  assert.equal(taskModeOf('team'), 'single');
+  assert.equal(taskModeOf(), 'single');
+  assert.deepEqual(TOOLS.find((t) => t.name === 'new_task').inputSchema.properties.mode.enum, ['single', 'subagents', 'hierarchy']);
   assert.deepEqual(checkSetting('terminalFontSize', '40'), { key: 'terminalFontSize', value: 24 });
   assert.match(checkSetting('currentProject', 'x').error, /no setting/);
   assert.match(checkSetting('nonsense', 1).error, /no setting/);

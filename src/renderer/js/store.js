@@ -20,8 +20,11 @@ export const DEFAULT_SETTINGS = {
   taskEffort: 'medium',
   // New tasks get their own git worktree.
   worktrees: false,
-  // How new tasks run: 'single' (one Claude Code session) or 'hierarchy' (a leader with workers and verifiers).
+  // How new tasks run: 'single' (one Claude Code session), 'hierarchy' (a leader with workers and verifiers)
+  // or 'subagents' (one session that delegates to sub-agents, each on the model that fits).
   taskMode: 'single',
+  // Sub-agents mode: the main session's model (its sub-agents' are fixed: Sonnet, Opus, Haiku).
+  subagentsModel: 'claude-sonnet-5-5',
   // Hierarchy mode's sessions, per role (the leader is the task's own session; V1's manager/worker settings carry over).
   managerModel: 'claude-opus-5-5',
   managerEffort: 'medium',
@@ -139,8 +142,9 @@ function normalizeTask(task) {
     // You named it (Rename): Claude Code's own title doesn't replace it.
     named: Boolean(task.named),
     kind,
-    // 'hierarchy': its session leads a team of workers and verifiers (daemon/team.js).
-    mode: task.mode === 'hierarchy' && kind === 'claude' ? 'hierarchy' : 'single',
+    // 'hierarchy': its session leads a team of workers and verifiers (daemon/team.js);
+    // 'subagents': its session delegates to sub-agents on Sonnet, Opus or Haiku (runargs.js).
+    mode: (task.mode === 'hierarchy' || task.mode === 'subagents') && kind === 'claude' ? task.mode : 'single',
     // Claude Code's session: its transcript is the task's history.
     sessionId: task.sessionId || (kind === 'claude' ? crypto.randomUUID() : ''),
     // Where it runs: the project folder, or its worktree.

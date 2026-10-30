@@ -5,8 +5,8 @@ import { openMic, createPauseDetector, pcm16, wav } from './mic.js';
  * Dictation into the chat's prompt bar, and only there: whatever else is focused or on screen (the terminal, Settings,
  * another box), the chat comes back and the words appear live in its prompt
  * bar as you speak; the finished phrase (with punctuation) replaces them
- * when you pause. Stopping it yourself (the mic, Ctrl+Shift+M,
- * ` (backtick) or Ctrl+Shift+M) sends what you said; Esc stops without sending. Windows'
+ * when you pause. Stopping it (the mic, Ctrl+Shift+M, ` (backtick), Tab or Esc) leaves what you said
+ * in the box to edit and send yourself (Enter). Windows'
  * speech engine by default; with a key, Deepgram, OpenAI (gpt-live-transcribe: words as you speak) or
  * OpenRouter (a phrase at a time, when you pause), in that order.
  */
@@ -28,7 +28,7 @@ export function initVoice(ctx) {
     for (const mic of mics()) {
       mic.classList.toggle('is-listening', value);
       mic.setAttribute('aria-pressed', String(value));
-      mic.title = value ? 'Stop and send (Ctrl+Shift+M)' : 'Dictate (Ctrl+Shift+M)';
+      mic.title = value ? 'Stop dictating (Ctrl+Shift+M)' : 'Dictate (Ctrl+Shift+M)';
     }
     const box = input();
     if (!box) return;
@@ -246,15 +246,8 @@ export function initVoice(ctx) {
     setListening(false);
   }
 
-  /** Stopping dictation yourself sends what you said. */
-  async function stopAndSend() {
-    await stop();
-    const box = input();
-    if (!box || !box.isConnected || !box.value.trim()) return;
-    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-  }
-
-  const toggle = () => (listening ? stopAndSend() : start());
+  /** Stopping dictation leaves what you said in the prompt bar; you send it yourself. */
+  const toggle = () => (listening ? stop() : start());
 
   // Tab, anywhere (but the terminal): talk to Katana. ` (backtick) in a chat: dictation.
   document.addEventListener(
@@ -266,7 +259,7 @@ export function initVoice(ctx) {
         toggle();
         return;
       }
-      // Esc: stop listening and send nothing (talking with Katana, or dictating).
+      // Esc: stop listening (talking with Katana, or dictating).
       if (event.key === 'Escape' && !document.querySelector('.dialog, .pop')) {
         const call = ctx.live?.();
         if (call?.active()) {
@@ -280,15 +273,15 @@ export function initVoice(ctx) {
       }
       if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || !event.isTrusted || event.repeat) return;
       if (event.target instanceof Element && event.target.closest('.xterm, .overlay, .pop, .dialog')) return;
-      // Tab: Katana's key, on any tab (open the mic, then Tab again sends). Stops dictation if that's on.
+      // Tab: Katana's key, on any tab (open the mic, then Tab again sends). Stops dictation if that's on, without sending.
       if (event.key === 'Tab') {
         event.preventDefault();
-        if (listening) stopAndSend();
+        if (listening) stop();
         else ctx.toggleVoice();
         return;
       }
       // `: dictation into the chat's prompt bar. With text already typed it's just a backtick
-      // (code in a prompt), unless you're dictating, when it stops and sends.
+      // (code in a prompt), unless you're dictating, when it stops (without sending).
       if (event.key === '`' && ctx.chatShown()) {
         const box = input();
         const typing = box && document.activeElement === box && box.value.trim() && !listening;

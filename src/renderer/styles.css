@@ -2096,24 +2096,29 @@ body[data-theme="light"] .avatar {
   opacity: 0.5;
 }
 
-/* Dictation runs from Ctrl+Shift+M; the mic only shows while it listens. */
-.mic-btn {
+/* The prompt bar's mic: white; a white outline while it listens, and nothing else. */
+.dictate-btn {
   flex: none;
-  display: none;
+  display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
-  color: var(--rose);
+  width: 20px;
+  height: 20px;
+  margin: -1px 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  color: #fff;
+  cursor: pointer;
 }
 
-.mic-btn svg {
+.dictate-btn svg {
   width: 12px;
   height: 12px;
 }
 
-.mic-btn.is-listening {
-  display: grid;
-  animation: breathe 1.2s ease-in-out infinite;
+.dictate-btn.is-listening {
+  border-color: #fff;
 }
 
 /* ----------------------------- popovers ------------------------------ */
@@ -2665,14 +2670,12 @@ body[data-motion="reduced"] .thinking-dots i {
 }
 
 /* The mic's pulse while listening: held still on Reduced (Off already stops everything). */
-body[data-motion="reduced"] .mic-btn.is-listening,
 body[data-motion="reduced"] .talk-btn.is-listening .talk-mic,
 body[data-motion="reduced"] .talk-btn.is-mic .talk-mic {
   animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body[data-motion="full"] .mic-btn.is-listening,
   body[data-motion="full"] .talk-btn.is-listening .talk-mic,
   body[data-motion="full"] .talk-btn.is-mic .talk-mic {
     animation: none;

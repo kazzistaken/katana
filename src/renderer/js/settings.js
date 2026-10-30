@@ -55,12 +55,14 @@ export const GROUPS = [
     ],
   },
   {
-    label: 'Hierarchy',
+    label: 'Modes',
     fields: [
-      choices('taskMode', 'New tasks run as', 'Hierarchy: the Leader you talk to splits the work across 4 workers (each its own Claude Code session, on its own branch) and has 2 verifiers check it before merging. Switch it per task beside the model above the prompt bar.', [
+      choices('taskMode', 'New tasks run as', 'Sub-agents: one session hands the work to its sub-agents, on Sonnet (most work), Opus (hard problems) or Haiku (tiny fixes). Hierarchy: the Leader you talk to splits the work across 4 workers (each its own Claude Code session, on its own branch) and has 2 verifiers check it before merging. Switch it per task beside the model above the prompt bar.', [
         { value: 'single', label: 'Single agent' },
+        { value: 'subagents', label: 'Sub-agents' },
         { value: 'hierarchy', label: 'Hierarchy' },
       ]),
+      choices('subagentsModel', 'Sub-agents: main model', 'The session you talk to, which plans and routes the work. A task can change it above its prompt bar.', modelOptions),
       choices('managerModel', 'Leader model', 'Plans, assigns, sends back and merges; writes no code. A task can change it above its prompt bar.', modelOptions),
       choices('managerEffort', 'Leader effort', null, effortOptions),
       choices('workerModel', 'Worker model', 'The workers that write the code. Started only when the Leader has work for them.', modelOptions),

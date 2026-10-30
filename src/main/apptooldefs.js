@@ -88,7 +88,13 @@ const TOOLS = [
       model: { type: 'string', enum: ['opus', 'sonnet', 'haiku'] },
       effort: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] },
       worktree: { type: 'boolean', description: 'Its own git worktree and branch (when two tasks share a folder).' },
-      hierarchy: { type: 'boolean', description: 'Run it as a team (hierarchy mode): a Leader that splits the work across up to 4 workers on their own branches and has 2 verifiers check it before merging. For big work with separable parts (default false: one session).' },
+      mode: {
+        type: 'string',
+        enum: ['single', 'subagents', 'hierarchy'],
+        description:
+          'How it runs (default single: one session). subagents: one session (Sonnet unless a model is given) that hands pieces to sub-agents on the model that fits: Sonnet for most work, Opus for hard problems, Haiku for tiny fixes; good for mixed work at lower cost. hierarchy: a team, a Leader that splits the work across up to 4 workers on their own branches and has 2 verifiers check it before merging; for big work with separable parts.',
+      },
+      hierarchy: { type: 'boolean', description: 'Same as mode "hierarchy" (kept for older calls).' },
       open: { type: 'boolean', description: 'Show it on screen (default false).' },
     },
     ['prompt']

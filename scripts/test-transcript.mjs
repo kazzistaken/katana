@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { browserGame, createTranscript, exchanges, writtenFiles } from '../src/renderer/js/transcript.js';
+import { browserGame, createTranscript, exchanges, subagentCalls, writtenFiles } from '../src/renderer/js/transcript.js';
 
 const t0 = '2026-10-28T10:00:00.000Z';
 const line = (type, content, { message = {}, ...extra } = {}) => ({ type, uuid: `${type}-${Math.random()}`, timestamp: t0, ...extra, message: { role: type, content, ...message } });
@@ -76,6 +76,43 @@ const line = (type, content, { message = {}, ...extra } = {}) => ({ type, uuid: 
   assert.equal(browserGame(ex('make a landing page', write('C:\p\index.html', '<h1>Hello</h1><button onclick="go()">Go</button>'))), '');
   assert.equal(browserGame(ex('write a game design doc', write('C:\p\design.md'))), '');
   assert.equal(browserGame(ex('the gamepad docs, plus a gameplan', write('C:\p\index.html'))), '');
+}
+
+{
+  // sub-agent calls: who, on which model (the one it ran on once it answered), what for, and how it went
+  const transcript = createTranscript();
+  const call = (id, input) => ({ type: 'assistant', uuid: `a-${id}`, timestamp: '2026-10-29T10:00:00Z', message: { id: `m-${id}`, content: [{ type: 'tool_use', id, name: 'Agent', input }] } });
+  const result = (id, meta, isError = false) => ({ type: 'user', uuid: `r-${id}`, timestamp: '2026-10-29T10:00:05Z', toolUseResult: meta, message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: isError, content: [{ type: 'text', text: 'done' }] }] } });
+  transcript.add([
+    { type: 'user', uuid: 'p', timestamp: '2026-10-29T09:59:00Z', message: { content: 'fix the header and the cache bug' } },
+    call('t1', { subagent_type: 'quick', description: 'Fix header spacing', prompt: '...' }),
+    call('t2', { subagent_type: 'builder', description: 'Fix cache invalidation', prompt: '...' }),
+    call('t3', { subagent_type: 'deep', description: 'Find the race', prompt: '...' }),
+    call('t4', { subagent_type: 'Explore', description: 'Look around', prompt: '...', run_in_background: true }),
+    { type: 'assistant', uuid: 'r', timestamp: '2026-10-29T10:00:01Z', message: { id: 'm-r', content: [{ type: 'tool_use', id: 'r1', name: 'Read', input: { file_path: 'a.js' } }] } },
+    result('t1', { status: 'completed', agentType: 'quick', resolvedModel: 'claude-haiku-5-5' }),
+    result('t3', { status: 'completed' }, true),
+    result('t4', { status: 'async_launched', resolvedModel: 'claude-opus-5-5' }),
+    // one sent to the background that came back: Claude Code's notification names its call
+    call('t5', { subagent_type: 'builder', description: 'Add tests', prompt: '...', run_in_background: true }),
+    result('t5', { status: 'async_launched', resolvedModel: 'claude-sonnet-5-5' }),
+    { type: 'user', uuid: 'n5', timestamp: '2026-10-29T10:01:00Z', message: { content: '<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>t5</tool-use-id>\n<status>completed</status>\n<summary>Agent "Add tests" finished</summary>\n</task-notification>' } },
+  ]);
+  const [ex] = exchanges(transcript.entries);
+  assert.deepEqual(subagentCalls(ex), [
+    { agent: 'quick', model: 'claude-haiku-5-5', what: 'Fix header spacing', state: 'done' },
+    // still running: the model it was set up with
+    { agent: 'builder', model: 'claude-sonnet-5-5', what: 'Fix cache invalidation', state: 'running' },
+    { agent: 'deep', model: 'claude-opus-5-5', what: 'Find the race', state: 'failed' },
+    { agent: 'Explore', model: 'claude-opus-5-5', what: 'Look around', state: 'background' },
+    { agent: 'builder', model: 'claude-sonnet-5-5', what: 'Add tests', state: 'done' },
+  ]);
+  // the notification is Claude Code's, not something you asked: still one exchange
+  assert.equal(exchanges(transcript.entries).length, 1);
+  // an older Claude Code's Task tool, and a model given on the call
+  const old = { tools: [{ name: 'Task', input: { subagent_type: 'general-purpose', model: 'haiku', description: 'Rename' }, result: null }] };
+  assert.deepEqual(subagentCalls(old), [{ agent: 'general-purpose', model: 'haiku', what: 'Rename', state: 'running' }]);
+  assert.deepEqual(subagentCalls({ tools: [] }), []);
 }
 
 console.log('transcript ok');

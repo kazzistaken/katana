@@ -171,9 +171,12 @@ async function createTask({ projectId, kind = 'claude', mode, prompt = '', workt
     }
   }
   // Hierarchy mode (Claude only): the task's session leads a team, on the leader's model unless one was picked.
-  const lead = kind === 'claude' && (mode ?? store.state.settings.taskMode) === 'hierarchy';
+  // Sub-agents mode: its session delegates to sub-agents, on the main session's model (Sonnet) unless one was picked.
   const { settings } = store.state;
-  const task = store.newTask(projectId, { kind, mode: lead ? 'hierarchy' : 'single', title: name, worktree: tree, model: model ?? (lead ? settings.managerModel : undefined), effort: effort ?? (lead ? settings.managerEffort : undefined) });
+  const want = kind === 'claude' ? (mode ?? settings.taskMode) : 'single';
+  const lead = want === 'hierarchy';
+  const delegate = want === 'subagents';
+  const task = store.newTask(projectId, { kind, mode: lead || delegate ? want : 'single', title: name, worktree: tree, model: model ?? (lead ? settings.managerModel : delegate ? settings.subagentsModel : undefined), effort: effort ?? (lead ? settings.managerEffort : undefined) });
   await store.flush();
   if (open) ctx.open(task.id);
   const reply = prompt ? await tasks.send(task, prompt) : await tasks.start(task);
@@ -331,22 +334,23 @@ const ctx = {
     return doing(t.tool);
   },
   /**
-   * Switch a task between 'single' (one session) and 'hierarchy' (a leader
-   * with workers and verifiers). Not while it works; an idle session closes
+   * Switch a task between 'single' (one session), 'hierarchy' (a leader
+   * with workers and verifiers) and 'subagents' (one session that delegates
+   * to sub-agents on Sonnet, Opus or Haiku). Not while it works; an idle session closes
    * and resumes in its new role on the next message, same conversation.
    * Leaving hierarchy stops a working team (after asking); unmerged work stays on its branches.
    */
   async setTaskMode(id, mode) {
     const task = store.task(id);
-    const next = mode === 'hierarchy' ? 'hierarchy' : 'single';
+    const next = mode === 'hierarchy' || mode === 'subagents' ? mode : 'single';
     if (!task || task.kind !== 'claude' || task.mode === next) return null;
     const t = tasks.get(id);
     if (t.state === 'working' || t.state === 'needs') {
       chatView.flash('It’s working: switch once it’s done (or stop it first).');
       return { error: 'working' };
     }
-    if (next === 'single' && team.busy(id)) {
-      const ok = await confirmDialog({ title: 'Stop the team?', body: `${team.working(id).join(', ')} still working. Single agent stops them; work that isn’t merged stays on its branches.`, ok: 'Stop and switch', cancel: 'Keep the team' });
+    if (next !== 'hierarchy' && team.busy(id)) {
+      const ok = await confirmDialog({ title: 'Stop the team?', body: `${team.working(id).join(', ')} still working. ${next === 'single' ? 'Single agent' : 'Sub-agents'} stops them; work that isn’t merged stays on its branches.`, ok: 'Stop and switch', cancel: 'Keep the team' });
       if (!ok) return null;
     }
     const reply = await team.setMode(id, next);
@@ -356,7 +360,12 @@ const ctx = {
     }
     store.patchTask(id, { mode: next });
     const left = reply?.unmerged?.length ? ` Unmerged work stays on ${reply.unmerged.join(', ')}.` : '';
-    chatView.flash(next === 'hierarchy' ? 'Hierarchy: your next message goes to the Leader, who splits the work across workers and has verifiers check it.' : `Single agent: your next message goes to one Claude session, same conversation.${left}`);
+    const said = {
+      hierarchy: 'Hierarchy: your next message goes to the Leader, who splits the work across workers and has verifiers check it.',
+      subagents: `Sub-agents: your next message goes to one Claude session, same conversation, which hands the work to sub-agents (Sonnet; Opus for hard problems, Haiku for tiny fixes).${left}`,
+      single: `Single agent: your next message goes to one Claude session, same conversation.${left}`,
+    };
+    chatView.flash(said[next]);
     if (pane === 'terminal') terminal.show(id);
     sidebar.render();
     renderTopbar();
@@ -536,6 +545,8 @@ const ctx = {
     }
     return voice.toggle();
   },
+  /** The prompt bar's mic: dictation only, never a call. */
+  dictate: () => voice.toggle(),
   isListening: () => Boolean(live?.active() || talk?.active() || voice?.isListening()),
   /** The voice conversation on now (what the face shows): a turn-at-a-time one, or GPT-Live. */
   live: () => (talk.active() ? talk : live),

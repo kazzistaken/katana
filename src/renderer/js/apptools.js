@@ -13,6 +13,16 @@ import { SENSITIVITIES } from './bargein.js';
 
 const MODEL_ALIAS = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5', haiku: 'claude-haiku-5-5' };
 
+/** new_task's mode: 'single', 'subagents' or 'hierarchy' (`hierarchy: true` is the older way to ask for a team). */
+export const taskModeOf = (mode, hierarchy = false) => (mode === 'subagents' || mode === 'hierarchy' ? mode : hierarchy ? 'hierarchy' : 'single');
+
+// How a Claude task runs, as app_state says it.
+export const MODE_NAMES = {
+  single: 'single (one session)',
+  subagents: 'sub-agents (one session that delegates: builder on Sonnet, deep on Opus, quick on Haiku)',
+  hierarchy: 'hierarchy (a Leader with workers and verifiers)',
+};
+
 // What press_keys sends for a named key; anything else is typed as it is.
 export const KEYS = {
   enter: '\r',
@@ -41,7 +51,7 @@ const ENUMS = {
   managerEffort: EFFORTS.map((e) => e.id),
   workerEffort: EFFORTS.map((e) => e.id),
   verifierEffort: EFFORTS.map((e) => e.id),
-  taskMode: ['single', 'hierarchy'],
+  taskMode: ['single', 'hierarchy', 'subagents'],
   liveVoiceName: VOICES,
   speechVoice: SPEECH_VOICES,
   bargeInSensitivity: SENSITIVITIES,
@@ -54,7 +64,7 @@ export function checkSetting(key, value, { shells = [] } = {}) {
   if (!(key in DEFAULT_SETTINGS) || NOT_HERE.has(key)) return { error: `There’s no setting called ${key}.` };
   const kind = typeof DEFAULT_SETTINGS[key];
   let next = value;
-  if (/^(task|agent|manager|worker|verifier)Model$/.test(key)) {
+  if (/^(task|agent|manager|worker|verifier|subagents)Model$/.test(key)) {
     next = MODEL_ALIAS[String(value).toLowerCase()] || value;
     if (!MODELS.some((m) => m.id === next)) return { error: `${key} is one of opus, sonnet, haiku.` };
     return { key, value: next };
@@ -128,7 +138,7 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
           doing: (ctx.stateOf?.(t.id) ?? tasks.get(t.id).state) === 'working' ? ctx.activityOf(t.id) : undefined,
           question: tasks.get(t.id).state === 'needs' ? `${tasks.waiting(t.id)}: ${tasks.get(t.id).message || 'in its terminal.'}` : undefined,
           model: t.model || undefined,
-          mode: t.mode === 'hierarchy' ? 'hierarchy (a Leader with workers and verifiers)' : undefined,
+          mode: t.kind === 'claude' ? MODE_NAMES[t.mode] : undefined,
           team: t.mode === 'hierarchy' ? teamOf(t.id) : undefined,
           worktree: t.worktree && !t.merged ? t.worktree.branch : undefined,
           done: Boolean(t.doneAt) || undefined,
@@ -186,7 +196,7 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
       if (!tasks.get(task.id).running) return { running: false, screen: '(not running: read_task shows what it said)' };
       return { running: true, screen: await terminal.screen(task.id, Math.min(400, Math.max(5, lines))) };
     },
-    new_task: async ({ folder: name, prompt, title, agent, model, effort, worktree, hierarchy = false, open = false }) => {
+    new_task: async ({ folder: name, prompt, title, agent, model, effort, worktree, mode, hierarchy = false, open = false }) => {
       const project = folder(name);
       const task = await ctx.createTask({
         projectId: project.id,
@@ -194,8 +204,8 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
         prompt: String(prompt || ''),
         title: title || undefined,
         worktree: worktree ?? store.state.settings.worktrees,
-        // Hers are single sessions unless she asks for a team.
-        mode: hierarchy ? 'hierarchy' : 'single',
+        // Hers are single sessions unless she asks for sub-agents or a team.
+        mode: taskModeOf(mode, hierarchy),
         model: MODEL_ALIAS[model] || undefined,
         effort: EFFORTS.some((e) => e.id === effort) ? effort : undefined,
         open: Boolean(open),

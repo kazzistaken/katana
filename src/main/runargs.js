@@ -57,7 +57,42 @@ const ROLES = {
   leader: { servers: ['katana-team'], disallowed: ['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Bash', 'Task'] },
 };
 
-function taskCommand({ kind, sessionId, resume, model, effort, bypass = true, prompt = '', settingsFile, mcpConfig = '', role = 'task', note = '' }, found) {
+/**
+ * Sub-agents mode: one Claude Code session that hands pieces of the work to
+ * its own sub-agents (the Agent tool), each on the model that fits the job.
+ * Passed per session (--agents), never written into the project or ~/.claude.
+ */
+const SUBAGENT_BASE =
+  'You are a sub-agent of a Claude Code session working in the user’s project. The main session gives you one piece of its work; its prompt is all you know, so read the code you need before changing it. Do the whole piece: make the edits in the style of the code around them and run the relevant tests or build when there are any. Stay inside the piece: no unrelated changes. When you finish, reply briefly to the main session: what you changed (files), how you checked it, and anything that failed or is left. If you couldn’t do it, say so plainly and why.';
+const SUBAGENTS = {
+  builder: {
+    model: 'claude-sonnet-5-5',
+    description: 'Sonnet. The default for most work: features, logic, refactors, tests, UI design and layout. Use it unless the piece is clearly trivial (quick) or genuinely hard (deep).',
+    prompt: `${SUBAGENT_BASE}\n\nYou are the builder, the workhorse: features, logic, refactors, tests, UI design and layout.`,
+  },
+  deep: {
+    model: 'claude-opus-5-5',
+    description: 'Opus. Only for genuinely hard problems: tricky architecture, hard debugging, subtle concurrency or algorithm work, or a piece a builder attempt already failed. Costly: not for ordinary work.',
+    prompt: `${SUBAGENT_BASE}\n\nYou are brought in for a hard problem, or one a first attempt failed. Find the root cause before changing code, and check your reasoning against the code and the tests.`,
+  },
+  quick: {
+    model: 'claude-haiku-5-5',
+    description: 'Haiku. Only for quick, very easy fixes: small UI discrepancies (spacing, colours, alignment), typos, one-line bugs, renames, simple config changes. Not for anything that needs design or investigation.',
+    prompt: `${SUBAGENT_BASE}\n\nYou handle small, easy fixes: make the smallest change that does it. If it turns out bigger than it looked, stop and say so rather than guess.`,
+  },
+};
+
+/** The --agents JSON: each sub-agent with its model (1M context window, as every session). */
+const subagentDefs = () => Object.fromEntries(Object.entries(SUBAGENTS).map(([name, agent]) => [name, { ...agent, model: withLongContext(agent.model) }]));
+
+// What the main session is told about routing.
+const SUBAGENTS_NOTE = `Sub-agents mode: you run this task by delegating its work to sub-agents with the Agent tool, each on the model that fits the job:
+- builder (Sonnet): the default for most work: features, logic, refactors, tests, UI design and layout.
+- deep (Opus): only for genuinely hard problems: tricky architecture, hard debugging, subtle concurrency or algorithm work, or when a builder attempt has failed.
+- quick (Haiku): only for quick, very easy fixes: spacing, colours, alignment, typos, one-line bugs, renames, simple config changes.
+When unsure, pick builder. Read enough of the code yourself to plan, then give each sub-agent a self-contained prompt: the goal, the files involved, constraints, and how to check it. Run independent pieces in parallel (several Agent calls in one message); keep pieces that touch the same files in one sub-agent. Run them in the foreground (run_in_background: false) and wait for them: the end of your turn is the task finishing. Don't set a model on the call: each sub-agent's model is fixed. Don't edit files yourself: every change goes to a sub-agent, even a one-line one (that is what quick is for). A question that needs no change you can answer yourself. Check what they report (the diff, the tests), retry a failed piece with deep, and tell the user what was done and which sub-agent did it.`;
+
+function taskCommand({ kind, sessionId, resume, model, effort, bypass = true, prompt = '', settingsFile, mcpConfig = '', role = 'task', mode = 'single', note = '' }, found) {
   if (kind === 'shell') {
     if (!found.shell) return { error: 'No shell found.' };
     return { file: found.shell.file, args: found.shell.args || [] };
@@ -72,7 +107,10 @@ function taskCommand({ kind, sessionId, resume, model, effort, bypass = true, pr
   // These take several values: the flag after them ends the list (never the prompt).
   if (mcpConfig) args.push('--mcp-config', mcpConfig, '--allowedTools', servers.map((s) => `mcp__${s}`).join(','));
   if (disallowed.length) args.push('--disallowedTools', disallowed.join(','));
-  const told = [mcpConfig && servers.includes('katana-viewer') ? VIEWER_NOTE : '', note].filter(Boolean).join('\n\n');
+  // Sub-agents mode (a task's own session only): its sub-agents, and how to route.
+  const delegating = role === 'task' && mode === 'subagents';
+  if (delegating) args.push('--agents', JSON.stringify(subagentDefs()));
+  const told = [mcpConfig && servers.includes('katana-viewer') ? VIEWER_NOTE : '', delegating ? SUBAGENTS_NOTE : '', note].filter(Boolean).join('\n\n');
   if (told) args.push('--append-system-prompt', told);
   if (settingsFile) args.push('--settings', settingsFile);
   if (sessionId) args.push(resume ? '--resume' : '--session-id', sessionId);
@@ -118,4 +156,4 @@ function killCommand(pid, platform = process.platform) {
   return platform === 'win32' ? ['taskkill', ['/pid', String(pid), '/T', '/F']] : null;
 }
 
-module.exports = { runArgs, taskCommand, runGuard, killCommand, ROLES };
+module.exports = { runArgs, taskCommand, runGuard, killCommand, ROLES, SUBAGENTS, subagentDefs };
