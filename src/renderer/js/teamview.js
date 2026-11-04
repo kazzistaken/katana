@@ -78,6 +78,7 @@ export function initTeamView(ctx, root) {
   async function replay(id, entry) {
     entry.ready = false;
     const tail = await api.task.tail(id);
+    if (terms.get(id) !== entry) return; // dropped while the tail was fetched
     entry.term.reset();
     if (tail) entry.term.write(tail);
     for (const chunk of entry.early) entry.term.write(chunk);
@@ -311,6 +312,25 @@ export function initTeamView(ctx, root) {
       render();
     },
     hidden: () => node.hidden,
+    /** A task done or deleted: its members' terminals are disposed (they hold thousands of lines each). */
+    drop(taskId) {
+      for (const [id, entry] of terms) {
+        if (id !== taskId && !id.startsWith(`${taskId}--`)) continue;
+        if (open === id) {
+          open = null;
+          full.hidden = true;
+          tree.hidden = false;
+        }
+        entry.term.dispose();
+        entry.wrap.remove();
+        terms.delete(id);
+        queued.delete(id);
+      }
+      if (shown === taskId) {
+        shown = null;
+        node.hidden = true;
+      }
+    },
     /** The session shown full size, if any (keys go to it). */
     open: () => open,
     collapse,

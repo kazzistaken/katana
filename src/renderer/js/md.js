@@ -1,14 +1,45 @@
-import { el } from './util.js';
+import { el, icons } from './util.js';
 
 /**
  * Just enough Markdown for Claude's answers and the documents the viewer
  * shows: paragraphs, `code`, **bold**, *italic*, fenced code blocks, bullet
  * and numbered lists (nested by indent), headings, quotes, rules, tables
- * (kept as their monospace text) and [links](…) shown as their words.
+ * and [links](…) shown as their words.
  * Built as DOM nodes, never as HTML, so nothing a file says can run as markup.
  */
 
 const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^)\n]+\)|(?<![\w*])\*[^*\s][^*\n]*\*(?![\w*]))/g;
+
+/** A text box's top right corner: copy it, or save it as a .md file (icons only). */
+function blockActions(text) {
+  const copy = el('button', {
+    type: 'button',
+    title: 'Copy',
+    'aria-label': 'Copy',
+    html: icons.copy,
+    onclick: async () => {
+      await navigator.clipboard.writeText(text);
+      copy.innerHTML = icons.check;
+      clearTimeout(copy._reset);
+      copy._reset = setTimeout(() => {
+        copy.innerHTML = icons.copy;
+      }, 1500);
+    },
+  });
+  const save = el('button', {
+    type: 'button',
+    title: 'Download as .md',
+    'aria-label': 'Download as .md',
+    html: icons.download,
+    onclick: () => {
+      // Named after its first line; the save dialog can change that.
+      const first = text.split('\n').find((line) => line.trim()) || '';
+      const name = first.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40).replace(/^-+|-+$/g, '') || 'text';
+      window.api.file.saveText(`${name}.md`, `${text}\n`);
+    },
+  });
+  return el('span', { class: 'md-pre-actions' }, copy, save);
+}
 
 /** One line's inline marks as nodes. */
 export function inline(text) {
@@ -33,6 +64,26 @@ export const plainText = (text) =>
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/^#+\s*/, '');
 
+/** A table's lines (| a | b |) as a table, with a header if the second line is the |---| kind. */
+function table(rows) {
+  const cells = (row) => row.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, '|'));
+  const rule = (row) => /^\s*\|[\s:|-]+\|\s*$/.test(row) && row.includes('-');
+  const headed = rows.length > 1 && rule(rows[1]);
+  const aligns = headed ? cells(rows[1]).map((c) => (c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : '')) : [];
+  const line = (row, tag) =>
+    el(
+      'tr',
+      {},
+      cells(row).map((cell, i) => el(tag, { style: aligns[i] ? `text-align:${aligns[i]}` : null }, inline(cell)))
+    );
+  const body = rows.filter((row, i) => !rule(row) && !(headed && i === 0));
+  return el(
+    'div',
+    { class: 'md-table-wrap' },
+    el('table', { class: 'md-table' }, headed ? el('thead', {}, line(rows[0], 'th')) : null, el('tbody', {}, body.map((row) => line(row, 'td'))))
+  );
+}
+
 /** Blocks of text as nodes. */
 export function blocks(text) {
   const lines = String(text || '').replace(/\r/g, '').split('\n');
@@ -55,17 +106,17 @@ export function blocks(text) {
       endList();
       const code = [];
       for (i += 1; i < lines.length && !/^\s*```/.test(lines[i]); i += 1) code.push(lines[i]);
-      out.push(el('pre', { class: 'md-pre', text: code.join('\n') }));
+      // (The buttons float in the corner, so the first lines wrap around them and nothing sits under them.)
+      out.push(el('pre', { class: 'md-pre' }, blockActions(code.join('\n')), code.join('\n')));
       continue;
     }
-    // A table: its own monospace text lines up already.
     if (/^\s*\|/.test(line)) {
       endPara();
       endList();
       const rows = [];
       for (; i < lines.length && /^\s*\|/.test(lines[i]); i += 1) rows.push(lines[i].trim());
       i -= 1;
-      out.push(el('pre', { class: 'md-table', text: rows.filter((row) => !/^\|[\s:|-]+\|$/.test(row)).join('\n') }));
+      out.push(table(rows));
       continue;
     }
     // (Before bullets: "* * *" and "- - -" are rules, not lists.)

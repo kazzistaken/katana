@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -19,6 +19,36 @@ async function until(test, ms, what) {
     await wait(50);
   }
   assert.fail(`timed out: ${what}`);
+}
+
+/* ---------------------- the pipe's line framing ---------------------- */
+{
+  const { EventEmitter } = await import('node:events');
+  const socket = Object.assign(new EventEmitter(), { setEncoding() {} });
+  const got = [];
+  onMessages(socket, (message) => got.push(message));
+  const big = { event: 'task:transcript', payload: { lines: ['x'.repeat(200_000)] } };
+  const text = `${JSON.stringify({ a: 1 })}\n\n${JSON.stringify(big)}\n${JSON.stringify({ b: 'é' })}\nnot json\n${JSON.stringify({ c: 3 })}`;
+  // In pieces of every size, a message across many of them.
+  for (let i = 0; i < text.length; ) {
+    const n = 1 + ((i * 7919) % 4096);
+    socket.emit('data', text.slice(i, i + n));
+    i += n;
+  }
+  assert.deepEqual(got, [{ a: 1 }, big, { b: 'é' }]);
+  socket.emit('data', '\n');
+  assert.deepEqual(got.at(-1), { c: 3 }, 'a line is whole once its end comes');
+}
+
+/* ---------- what counts as the daemon's code (out of date when it changes) ---------- */
+{
+  const { codeFiles } = require('../src/daemon/protocol.js');
+  const names = codeFiles().map((file) => path.relative(path.resolve('src'), file).replace(/\\/g, '/'));
+  // Everything it loads, the window modules headless.js imports among them (and theirs).
+  for (const name of ['daemon/katanad.js', 'daemon/core.js', 'daemon/headless.js', 'main/tasks.js', 'main/screens.js', 'main/hook.cjs', 'main/mcp-app.cjs', 'renderer/js/store.js', 'renderer/js/apptools.js', 'renderer/js/transcript.js']) {
+    assert.ok(names.includes(name), `${name} is the daemon's code`);
+  }
+  assert.ok(!names.some((name) => name.includes('node_modules')));
 }
 
 /* ----------------------- where a task stands ----------------------- */
@@ -102,9 +132,83 @@ async function until(test, ms, what) {
   assert.equal(last().finished, false);
   assert.equal(last().running, false);
 
-  assert.deepEqual(states.snapshot().map((t) => t.id).sort(), ['a', 's']);
+  // Codex: its rollout read as hooks. A quiet terminal while it thinks isn't done; Stop is.
+  states.started('c', { kind: 'codex', prompt: 'fix it' });
+  assert.equal(last().state, 'working');
+  states.hook('c', { event: 'SessionStart' });
+  states.hook('c', { event: 'UserPromptSubmit' });
+  states.hook('c', { event: 'PreToolUse', tool: 'Bash', toolId: 'call_1', detail: 'npm test' });
+  assert.equal(last().tool.name, 'Bash');
+  states.get('c').since -= 5000;
+  states.quiet('c', 5000);
+  assert.equal(last().state, 'working');
+  states.hook('c', { event: 'PostToolUse', toolId: 'call_1' });
+  states.hook('c', { event: 'Stop' });
+  assert.equal(last().state, 'idle');
+  assert.equal(last().finished, true);
+  // Esc: Codex's turn_aborted reads as Claude's interrupt line: stopped, not finished.
+  states.said('c');
+  states.transcript('c', [{ type: 'user', timestamp: new Date(Date.now() + 1000).toISOString(), message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } }]);
+  assert.equal(last().state, 'idle');
+  assert.equal(last().stopped, true);
+
+  assert.deepEqual(states.snapshot().map((t) => t.id).sort(), ['a', 'c', 's']);
   states.forget('a');
   states.forget('s');
+  states.forget('c');
+}
+
+/* ---- a resumed session, and Working (a tool runs) vs Thinking ---- */
+{
+  const seen = [];
+  const states = createTaskStates({ emit: (u) => seen.push(u) });
+  const last = () => seen.at(-1);
+  const ago = new Date(Date.now() - 60_000).toISOString();
+
+  // Resumed with a message: its old transcript is read from the top, before any hook.
+  // Its last turn's end (or an old API error) is history, not this turn ending.
+  states.started('r', { kind: 'claude', prompt: 'and now the tests' });
+  states.transcript('r', [
+    { type: 'user', timestamp: ago, message: { content: 'fix it' } },
+    { type: 'assistant', timestamp: ago, message: { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Fixed.' }] } },
+    { type: 'assistant', isApiErrorMessage: true, timestamp: ago, message: { stop_reason: 'stop_sequence', content: [{ type: 'text', text: 'API Error: 529' }] } },
+  ]);
+  assert.equal(last().state, 'working', 'old lines do not end the new turn');
+  assert.ok(!seen.some((u) => u.finished), 'and nothing "finished"');
+  // A turn really ending (no hooks in this session) still does.
+  states.transcript('r', [{ type: 'assistant', timestamp: new Date().toISOString(), message: { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done.' }] } }]);
+  assert.equal(last().state, 'idle');
+  assert.equal(last().finished, true);
+
+  // A tool runs while it's in use; between tools it thinks (no tool), even with two at once.
+  states.hook('w', { event: 'UserPromptSubmit' });
+  assert.equal(last().tool, null);
+  states.hook('w', { event: 'PreToolUse', tool: 'Bash', toolId: 't1', desc: 'Run the tests' });
+  states.hook('w', { event: 'PreToolUse', tool: 'Read', toolId: 't2', detail: 'a.js' });
+  assert.equal(last().tool.name, 'Read');
+  states.hook('w', { event: 'PostToolUse', tool: 'Read', toolId: 't2' });
+  assert.equal(last().tool.desc, 'Run the tests', 'the one still running');
+  states.hook('w', { event: 'PostToolUseFailure', tool: 'Bash', toolId: 't1' });
+  assert.equal(last().tool, null, 'thinking again');
+  assert.equal(last().state, 'working');
+  // Hooks without ids (older hook script): the tool ends with its PostToolUse all the same.
+  states.hook('w', { event: 'PreToolUse', tool: 'Grep' });
+  states.hook('w', { event: 'PostToolUse', tool: 'Grep' });
+  assert.equal(last().tool, null);
+  // Stopped mid-tool: no PostToolUse comes; the next turn starts with none.
+  states.hook('w', { event: 'PreToolUse', tool: 'Bash', toolId: 't3' });
+  states.hook('w', { event: 'Stop' });
+  states.hook('w', { event: 'UserPromptSubmit' });
+  assert.equal(last().tool, null);
+}
+
+/* -------- a message for a Claude session still starting up -------- */
+{
+  const { inputReady } = require('../src/main/tasks.js');
+  assert.equal(inputReady(''), false, 'nothing drawn yet');
+  assert.equal(inputReady('Resuming…\n Claude Code v2.1\n'), false);
+  assert.equal(inputReady('● hi\n────\n❯ \n────\n  ⏵⏵ auto mode on'), true, 'its input box is up');
+  assert.equal(inputReady('Do you trust the files in this folder?\n❯ 1. Yes, I trust this folder\n  2. No, exit'), false, 'a question is not the input box');
 }
 
 /* --------------- the daemon itself, with a real shell --------------- */
@@ -121,6 +225,12 @@ async function until(test, ms, what) {
   let client = createDaemonClient(options);
   const hello = await client.connect();
   assert.ok(hello.pid > 0 && hello.pid !== process.pid, 'it runs on its own');
+  // A failed check leaves no daemon (and its shell) behind.
+  process.on('exit', (code) => {
+    if (!code) return;
+    if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(hello.pid), '/T', '/F'], { stdio: 'ignore' });
+    else process.kill(hello.pid);
+  });
 
   // Only trusted folders.
   assert.match((await client.call('start', { id: 'x', kind: 'shell', cwd: root })).error, /not a trusted folder/);
@@ -128,8 +238,11 @@ async function until(test, ms, what) {
   const started = await client.call('start', { id: 't1', kind: 'shell', cwd: project, cols: 100, rows: 30 });
   assert.equal(started.started, true);
   await wait(1200);
-  await client.call('say', 't1', 'echo katana-daemon-ok');
   const printed = () => events.filter((e) => e.channel === 'task:data' && e.payload.id === 't1').map((e) => e.payload.data).join('');
+  // Its output comes only once a terminal is open on it (watched): what it printed before, as the tail.
+  assert.equal(printed(), '', 'no terminal open on it: no output sent');
+  assert.equal(typeof (await client.watch('t1')), 'string');
+  await client.call('say', 't1', 'echo katana-daemon-ok');
   await until(() => (printed().match(/katana-daemon-ok/g) || []).length >= 2, 15000, 'the shell printed it');
   await until(() => events.some((e) => e.channel === 'task:state' && e.payload.id === 't1' && e.payload.finished), 15000, 'the shell went quiet: finished');
 

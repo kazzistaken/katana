@@ -1,8 +1,5 @@
-import { DEFAULT_SETTINGS, MODELS, EFFORTS } from './store.js';
-import { exchanges, writtenFiles } from './transcript.js';
-import { VOICES } from './live.js';
-import { SPEECH_VOICES } from './talk.js';
-import { SENSITIVITIES } from './bargein.js';
+import { DEFAULT_SETTINGS, MODELS, CODEX_MODELS, EFFORTS, THEME_IDS, NO_BACKGROUND_COLORS } from './store.js';
+import { exchanges, writtenFiles, SUBAGENTS_LEAD } from './transcript.js';
 
 /**
  * Katana's hands in the window: her tools (main apptooldefs.js), carried
@@ -14,12 +11,18 @@ import { SENSITIVITIES } from './bargein.js';
 const MODEL_ALIAS = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5', haiku: 'claude-haiku-5-5' };
 
 /** new_task's mode: 'single', 'subagents' or 'hierarchy' (`hierarchy: true` is the older way to ask for a team). */
+/** new_task's model: a Claude alias (opus, sonnet, haiku) for Claude, a Codex model's id for Codex; undefined: the default for that agent. */
+export const taskModelOf = (agent, model) => {
+  const value = String(model || '').toLowerCase();
+  if (agent === 'codex') return CODEX_MODELS.find((m) => m.id === value)?.id;
+  return agent === 'shell' ? undefined : MODEL_ALIAS[value] || (MODELS.some((m) => m.id === value) ? value : undefined);
+};
 export const taskModeOf = (mode, hierarchy = false) => (mode === 'subagents' || mode === 'hierarchy' ? mode : hierarchy ? 'hierarchy' : 'single');
 
 // How a Claude task runs, as app_state says it.
 export const MODE_NAMES = {
   single: 'single (one session)',
-  subagents: 'sub-agents (one session that delegates: builder on Sonnet, deep on Opus, quick on Haiku)',
+  subagents: 'sub-agents (an Opus lead that picks sub-agents: quick on Haiku, builder on Sonnet, deep on Opus)',
   hierarchy: 'hierarchy (a Leader with workers and verifiers)',
 };
 
@@ -43,18 +46,17 @@ export const KEYS = {
 export const keyBytes = (keys) => (Array.isArray(keys) ? keys : [keys]).map((key) => KEYS[String(key).toLowerCase()] ?? String(key));
 
 const ENUMS = {
-  theme: ['system', 'graphite', 'black', 'tokyo-night', 'catppuccin', 'rose-pine', 'nord', 'light'],
+  style: ['glass', 'slate'],
+  theme: THEME_IDS,
+  noBackgroundColor: NO_BACKGROUND_COLORS.map((color) => color.id),
   textSize: ['default', 'larger'],
-  motion: ['full', 'reduced', 'off'],
   taskEffort: EFFORTS.map((e) => e.id),
+  codexEffort: EFFORTS.map((e) => e.id),
   agentEffort: EFFORTS.map((e) => e.id),
   managerEffort: EFFORTS.map((e) => e.id),
   workerEffort: EFFORTS.map((e) => e.id),
   verifierEffort: EFFORTS.map((e) => e.id),
   taskMode: ['single', 'hierarchy', 'subagents'],
-  liveVoiceName: VOICES,
-  speechVoice: SPEECH_VOICES,
-  bargeInSensitivity: SENSITIVITIES,
 };
 // Set through their own tools (set_folder) or kept to the user (the key).
 const NOT_HERE = new Set(['currentProject']);
@@ -64,7 +66,11 @@ export function checkSetting(key, value, { shells = [] } = {}) {
   if (!(key in DEFAULT_SETTINGS) || NOT_HERE.has(key)) return { error: `There’s no setting called ${key}.` };
   const kind = typeof DEFAULT_SETTINGS[key];
   let next = value;
-  if (/^(task|agent|manager|worker|verifier|subagents)Model$/.test(key)) {
+  if (key === 'codexModel') {
+    if (!CODEX_MODELS.some((m) => m.id === value)) return { error: `codexModel is one of ${CODEX_MODELS.map((m) => m.id).join(', ')}.` };
+    return { key, value };
+  }
+  if (/^(task|agent|manager|worker|verifier)Model$/.test(key)) {
     next = MODEL_ALIAS[String(value).toLowerCase()] || value;
     if (!MODELS.some((m) => m.id === next)) return { error: `${key} is one of opus, sonnet, haiku.` };
     return { key, value: next };
@@ -89,7 +95,7 @@ const clip = (text, max) => {
   return value.length > max ? `${value.slice(0, max)}… (${value.length - max} more characters)` : value;
 };
 
-export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, notify }) {
+export function createAppTools({ api, store, tasks, ctx, terminal, flash, notify }) {
   /** A task by id; it must exist. */
   function need(id) {
     const task = store.task(String(id || ''));
@@ -137,7 +143,7 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
           state: stateName(t.id),
           doing: (ctx.stateOf?.(t.id) ?? tasks.get(t.id).state) === 'working' ? ctx.activityOf(t.id) : undefined,
           question: tasks.get(t.id).state === 'needs' ? `${tasks.waiting(t.id)}: ${tasks.get(t.id).message || 'in its terminal.'}` : undefined,
-          model: t.model || undefined,
+          model: (t.mode === 'subagents' ? `${SUBAGENTS_LEAD} (lead)` : t.model) || undefined,
           mode: t.kind === 'claude' ? MODE_NAMES[t.mode] : undefined,
           team: t.mode === 'hierarchy' ? teamOf(t.id) : undefined,
           worktree: t.worktree && !t.merged ? t.worktree.branch : undefined,
@@ -149,7 +155,6 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
       reminders: agent.reminders.map((r) => ({ id: r.id, text: r.text, at: new Date(r.at).toLocaleTimeString() })),
       checks: (agent.watches || []).map((w) => ({ id: w.id, check: w.check, every: w.every, looked: w.checks, until: new Date(w.until).toLocaleString() })),
       today: store.today(),
-      voice: live?.active() ? 'in a live voice conversation' : 'off',
     };
   }
 
@@ -174,7 +179,7 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
         answer: clip(ex.texts.at(-1)?.text || '', 6000),
         stopped: ex.interrupted || undefined,
       })),
-      note: task.kind === 'claude' ? undefined : 'Codex and shells keep no transcript: use read_terminal.',
+      note: task.kind === 'shell' ? 'A shell keeps no transcript: use read_terminal.' : undefined,
     };
   }
 
@@ -206,7 +211,7 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
         worktree: worktree ?? store.state.settings.worktrees,
         // Hers are single sessions unless she asks for sub-agents or a team.
         mode: taskModeOf(mode, hierarchy),
-        model: MODEL_ALIAS[model] || undefined,
+        model: taskModelOf(agent, model),
         effort: EFFORTS.some((e) => e.id === effort) ? effort : undefined,
         open: Boolean(open),
       });
@@ -234,7 +239,8 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
     },
     finish_task: ({ task: id }) => {
       const task = need(id);
-      if (tasks.get(task.id).state === 'working') throw new Error('It is still working: stop it first.');
+      // (A hierarchy task works while its team does: ctx.done would quietly do nothing.)
+      if ((ctx.stateOf?.(task.id) ?? tasks.get(task.id).state) === 'working') throw new Error('It is still working: stop it first.');
       ctx.done(task.id);
       return { done: true };
     },
@@ -284,10 +290,8 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
     show: ({ view, task: id }) => {
       if (view === 'task' || view === 'terminal' || view === 'file') showTask(need(id || ctx.current()).id, view);
       else if (view === 'new_task') ctx.newTask();
-      else if (view === 'katana' || view === 'katana_conversation') {
-        ctx.openAgent();
-        ctx.setAgentMode(view === 'katana' ? 'avatar' : 'doc');
-      } else if (view === 'settings') ctx.openSettings();
+      else if (view === 'katana') ctx.openAgent();
+      else if (view === 'settings') ctx.openSettings();
       else if (view === 'close_settings') ctx.closeSettings();
       else throw new Error(`There’s no view called ${view}.`);
       return { shown: view };
@@ -353,13 +357,14 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
       return { showing: info.path, beside: task.title };
     },
     // A hierarchy verifier's (or worker's) call comes with its own folder (`cwd`): its app runs from there, in its task's viewer.
-    run_app: async ({ task: id, command = '', page = '', from = '', cwd = '' }) => {
+    run_app: async ({ task: id, page = '', from = '', cwd = '' }) => {
       const task = need(id || ctx.current());
+      if (!page) throw new Error('Which page? This shows web pages (give an HTML file’s full path).');
       // A task's own session testing in the background doesn't take over your screen;
       // Katana asked to show it, or you're on that task: it shows.
       const show = from !== 'task' || ctx.current() === task.id;
       if (show) ctx.open(task.id);
-      const reply = await ctx.runApp(task.id, { command: String(command || ''), page: String(page || ''), show, ...(from === 'task' && cwd ? { cwd: String(cwd) } : {}) });
+      const reply = await ctx.runApp(task.id, { page: String(page), show, ...(from === 'task' && cwd ? { cwd: String(cwd) } : {}) });
       if (reply?.error) throw new Error(reply.error);
       // Ready to be looked at: its first window is up (or it ended).
       const state = await settle(task.id);
@@ -380,7 +385,7 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
     read_app_output: ({ task: id, lines = 80 }) => {
       const task = need(id || ctx.current());
       const state = ctx.appState(task.id);
-      if (!state) return { none: 'No app has run beside that task. run_app starts one.' };
+      if (!state) return { none: 'No page has been shown beside that task. run_app shows one.' };
       const text = ctx.appOutput(task.id).split(/\r?\n/).slice(-Math.max(1, Math.min(2000, Number(lines) || 80))).join('\n');
       return {
         app: state.page || state.label,
@@ -396,12 +401,6 @@ export function createAppTools({ api, store, tasks, ctx, terminal, live, flash, 
       flash(String(text || ''));
       notify?.(String(text || ''));
       return { shown: true };
-    },
-    end_voice: () => {
-      if (!live?.active()) return { already: 'No voice conversation is on.' };
-      // After this answer is spoken.
-      setTimeout(() => live.stop(), 2500);
-      return { ending: true };
     },
   };
 

@@ -19,6 +19,7 @@ const net = require('node:net');
 const path = require('node:path');
 const { createCore } = require('./core');
 const { METHODS, pipePath, infoFile, codeVersion, onMessages, sendLine } = require('./protocol');
+const { parseMember } = require('./team');
 
 const IDLE_EXIT_MS = 10 * 60_000;
 const LOG_MAX = 1_000_000;
@@ -31,6 +32,14 @@ const version = codeVersion();
 const pipe = pipePath(userDataDir);
 const STARTED = Date.now();
 const clients = new Set();
+// The tasks whose terminal output (task:data) each window wants: the ones it has a
+// terminal open on (watch/unwatch), a hierarchy task's members with it. A client
+// that didn't say hello with `watch` gets every task's.
+const watching = new Map(); // socket -> Set of task ids
+const wants = (socket, id) => {
+  const ids = watching.get(socket);
+  return !ids || ids.has(id) || ids.has(parseMember(id)?.taskId);
+};
 let lastBusy = Date.now();
 
 function log(...parts) {
@@ -55,7 +64,7 @@ const core = createCore({
   // A test run that keeps Claude away (main checks it too, for tasks).
   block: Boolean(process.env.XODE2_TEST) && process.env.XODE2_LIVE !== '1',
   emit(event, payload) {
-    for (const client of clients) sendLine(client, { event, payload });
+    for (const client of clients) if (event !== 'task:data' || wants(client, payload?.id)) sendLine(client, { event, payload });
   },
   toWindow(event, payload) {
     const window = windows.at(-1);
@@ -94,6 +103,7 @@ const server = net.createServer((socket) => {
   socket.on('error', () => {});
   socket.on('close', () => {
     clients.delete(socket);
+    watching.delete(socket);
     const index = windows.indexOf(socket);
     if (index >= 0) windows.splice(index, 1);
     countWindows();
@@ -106,6 +116,7 @@ const server = net.createServer((socket) => {
       if (method === 'hello' && hello?.token === token) {
         authed = true;
         clients.add(socket);
+        if (hello.watch) watching.set(socket, new Set());
         if (hello.role === 'window') {
           windows.push(socket);
           countWindows();
@@ -120,6 +131,12 @@ const server = net.createServer((socket) => {
     if (!METHODS.has(method)) {
       if (id !== undefined) sendLine(socket, { id, error: `no method ${method}` });
       return;
+    }
+    // Before its tail is read (the handler): output after that comes to it as task:data.
+    if ((method === 'watch' || method === 'unwatch') && watching.has(socket)) {
+      const taskId = String((Array.isArray(params) ? params[0] : params) ?? '');
+      if (method === 'watch') watching.get(socket).add(taskId);
+      else watching.get(socket).delete(taskId);
     }
     try {
       const result = await handlers[method](...(Array.isArray(params) ? params : [params]));

@@ -1,27 +1,50 @@
 import { fixDictation } from './dictationfixes.js';
-import { openMic, createPauseDetector, pcm16, wav } from './mic.js';
+import { MIC_AUDIO, openMic, createPauseDetector, pcm16, wav } from './mic.js';
+import { createPhrases } from './dictationphrases.js';
 
 /**
- * Dictation into the chat's prompt bar, and only there: whatever else is focused or on screen (the terminal, Settings,
- * another box), the chat comes back and the words appear live in its prompt
- * bar as you speak; the finished phrase (with punctuation) replaces them
- * when you pause. Stopping it (the mic, Ctrl+Shift+M, ` (backtick), Tab or Esc) leaves what you said
- * in the box to edit and send yourself (Enter). Windows'
- * speech engine by default; with a key, Deepgram, OpenAI (gpt-live-transcribe: words as you speak) or
- * OpenRouter (a phrase at a time, when you pause), in that order.
+ * Dictation into the text box you're in (a rename, a Settings field, the prompt
+ * bar; move to another mid-sentence and the words follow). Anywhere else (the
+ * terminal, a button, the mic itself) the chat comes back and they go in its
+ * prompt bar. Never a password or key field. Only finished words go in the box,
+ * a phrase at a time, so what's there doesn't change under you; the mic shows when
+ * a phrase is still being heard. Stopping it (the mic, Ctrl+Shift+M,
+ * ` (backtick) or Esc) leaves what you said in the box to edit and send
+ * yourself (Enter).
+ *
+ * NVIDIA Canary-Qwen 2.5B on this PC, a phrase at a time (main canary.js). If
+ * it isn't set up or can't load: with a key, Deepgram, OpenAI
+ * (gpt-live-transcribe) or OpenRouter, in that order; else Windows' speech engine.
  */
 
 export function initVoice(ctx) {
   let listening = false;
   let starting = false;
-  // The box's text before the phrase being spoken, while one is in progress.
-  let phraseBase = null;
   let dg = null;
   let oa = null; // OpenAI or OpenRouter dictation: { mic, gate }
-  let clips = Promise.resolve(); // OpenRouter: phrases being heard, in order
+  let clips = Promise.resolve(); // Canary, OpenRouter: phrases being heard, in order
+  let clipsOut = 0; // Canary, OpenRouter: how many of them
+  const phrases = createPhrases(); // Canary: the live engine's rough words, should hearing a phrase fail
 
   const input = () => document.querySelector('.composer-input');
   const mics = () => document.querySelectorAll('.mic-btn');
+  // A box we may write in: no password or key fields, and not the terminal's hidden one.
+  const isTextBox = (node) => node instanceof HTMLElement && node.matches('textarea, input:not([type]), input[type="text"], input[type="search"], input[type="url"]') && !node.disabled && !node.readOnly && !node.closest('.xterm');
+  // Where the words go: a text box other than the prompt bar; null: the prompt bar.
+  let target = null;
+  let marked = null; // the box saying "Listening…"
+  let sessions = 0; // each start and stop: what a stop's late steps check before acting
+
+  function mark(box) {
+    if (marked && marked.dataset.placeholder !== undefined) {
+      marked.placeholder = marked.dataset.placeholder;
+      delete marked.dataset.placeholder;
+    }
+    marked = box;
+    if (!box) return;
+    box.dataset.placeholder = box.placeholder;
+    box.placeholder = 'Listening… speak now';
+  }
 
   function setListening(value) {
     listening = value;
@@ -30,15 +53,7 @@ export function initVoice(ctx) {
       mic.setAttribute('aria-pressed', String(value));
       mic.title = value ? 'Stop dictating (Ctrl+Shift+M)' : 'Dictate (Ctrl+Shift+M)';
     }
-    const box = input();
-    if (!box) return;
-    if (value) {
-      box.dataset.placeholder = box.placeholder;
-      box.placeholder = 'Listening… speak now';
-    } else if (box.dataset.placeholder !== undefined) {
-      box.placeholder = box.dataset.placeholder;
-      delete box.dataset.placeholder;
-    }
+    mark(value ? target || input() : null);
   }
 
   function joined(base, text) {
@@ -49,58 +64,64 @@ export function initVoice(ctx) {
     return base ? `${base} ${clean}` : clean;
   }
 
-  /** The prompt bar, on screen and focused. */
-  function promptBar() {
+  /** Where the words go now: the box you chose while it's still there, else the prompt bar, on screen and focused. */
+  function destination() {
+    if (target?.isConnected && target.getClientRects().length) return target;
+    if (target) mark(input());
+    target = null;
     const box = input();
     if (!box) return null;
-    if (!box.offsetParent) ctx.showChat();
-    if (document.activeElement !== box) box.focus();
+    // (A last phrase landing after you stopped goes in quietly: you may have moved on.)
+    if (listening && !box.offsetParent) ctx.showChat();
+    if (listening && document.activeElement !== box) box.focus();
     return box;
   }
 
   function show(value) {
-    const box = promptBar();
+    const box = destination();
     if (!box) return;
     box.value = value;
     box.dispatchEvent(new Event('input', { bubbles: true }));
     box.setSelectionRange(box.value.length, box.value.length);
   }
 
-  /** Live words while speaking: shown in the box, replaced by the final phrase. */
-  function partial(text) {
-    const box = input();
-    if (!box) return;
-    if (phraseBase === null) phraseBase = box.value.trimEnd();
-    show(joined(phraseBase, text));
-  }
-
+  /** A finished phrase, after whatever's in the box now. */
   function append(text) {
-    const box = input();
+    const box = destination();
     if (!box) return;
-    const base = phraseBase !== null ? phraseBase : box.value.trimEnd();
-    phraseBase = null;
-    show(joined(base, text));
+    const base = box.value.trimEnd();
+    const value = joined(base, text);
+    if (value === base) return;
+    show(value);
+    // (A Settings field saves on change; the prompt bar has no need of it.)
+    if (target) box.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  // Typing yourself keeps what's in the box; the next phrase starts after it.
-  document.addEventListener(
-    'keydown',
-    (event) => {
-      if (event.isTrusted && event.target === input() && event.key.length === 1) phraseBase = null;
-    },
-    true
-  );
+  /** The mic says whether a phrase is still being heard: until its words land, there's nothing in the box to say so. */
+  function clipOut(change) {
+    clipsOut += change;
+    for (const mic of mics()) mic.classList.toggle('is-hearing', clipsOut > 0);
+  }
+
+  // Moved to another box while dictating: the words follow.
+  document.addEventListener('focusin', (event) => {
+    if (!listening || !isTextBox(event.target)) return;
+    const next = event.target === input() ? null : event.target;
+    if (next === target) return;
+    target = next;
+    mark(event.target);
+  });
 
   /* ---------------------- Deepgram, when keyed ----------------------- */
 
   async function startDeepgram(key) {
-    const url = 'wss://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&interim_results=true&endpointing=300&keywords=Claude:2';
+    const url = 'wss://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&interim_results=true&endpointing=300&keywords=Claude:2&keywords=Katana:2';
     // Open the socket and the mic together; audio recorded before it opens is queued.
     const socket = new WebSocket(url, ['token', key]);
     const queue = [];
     dg = { socket, recorder: null, stream: null };
     socket.onopen = () => queue.splice(0).forEach((chunk) => socket.send(chunk));
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: MIC_AUDIO });
     if (!dg || dg.socket !== socket) {
       stream.getTracks().forEach((track) => track.stop());
       return;
@@ -124,13 +145,11 @@ export function initVoice(ctx) {
       const text = data?.channel?.alternatives?.[0]?.transcript;
       if (!text) return;
       if (data.is_final) append(text);
-      else partial(text);
     };
     socket.onclose = (event) => {
       if (dg && dg.socket === socket) {
         if (event.code !== 1000) ctx.flash(`Deepgram closed the connection (${event.code}).`);
         stopDeepgram();
-        phraseBase = null;
         setListening(false);
       }
     };
@@ -156,7 +175,7 @@ export function initVoice(ctx) {
 
   /* ----------------------- OpenAI, when keyed ----------------------- */
 
-  /** OpenAI: the mic streams while you speak; words come back as you say them. */
+  /** OpenAI: the mic streams while you speak; each phrase's words come back once you pause. */
   async function startOpenAI() {
     const gate = createPauseDetector({
       send: (samples) => window.api.voice.audio(pcm16(samples)),
@@ -165,19 +184,25 @@ export function initVoice(ctx) {
     oa = { gate, mic: await openMic({ onChunk: (samples) => gate.push(samples) }) };
   }
 
-  /** OpenRouter: each phrase is heard when you pause ("…" until its words come back). */
-  async function startOpenRouter() {
-    let phrase = [];
+  /** Canary or OpenRouter: each phrase is heard when you pause, and its words land when they come back. */
+  async function startClips(hear) {
+    let audio = [];
     const gate = createPauseDetector({
-      send: (samples) => phrase.push(samples),
+      send: (samples) => {
+        phrases.begin();
+        audio.push(samples);
+      },
       commit: () => {
-        const clip = wav(phrase);
-        phrase = [];
-        partial('…');
+        const clip = wav(audio);
+        audio = [];
+        const phrase = phrases.end();
+        clipOut(1);
         clips = clips.then(async () => {
-          const reply = await window.api.voice.clip(clip).catch((error) => ({ error: error.message }));
+          const reply = await hear(clip).catch((error) => ({ error: error.message }));
           if (reply?.error) ctx.flash(`Dictation: ${reply.error}`);
-          append(reply?.text || '');
+          // (It couldn't be heard properly: the rough words are better than none.)
+          append(reply?.error ? phrases.rough(phrase) : reply?.text);
+          clipOut(-1);
         });
       },
     });
@@ -197,13 +222,17 @@ export function initVoice(ctx) {
 
   async function start() {
     if (starting || listening) return;
-    const box = promptBar();
+    // The text box you're in; anywhere else, the prompt bar.
+    const active = document.activeElement;
+    target = isTextBox(active) && active !== input() ? active : null;
+    const box = destination();
     if (!box) {
       ctx.flash('Open a chat to dictate into it.');
       return;
     }
     if (box.disabled) return;
     starting = true;
+    sessions += 1;
     // Show the listening state at once; undo it if the engine fails to start.
     setListening(true);
     try {
@@ -216,10 +245,17 @@ export function initVoice(ctx) {
       }
       if (result?.ok && result.deepgramKey) await startDeepgram(result.deepgramKey);
       else if (result?.ok && result.openai) await startOpenAI();
-      else if (result?.ok && result.openrouter) await startOpenRouter();
+      else if (result?.ok && result.canary) await startClips((clip) => window.api.voice.canary(clip));
+      else if (result?.ok && result.openrouter) await startClips((clip) => window.api.voice.clip(clip));
       else if (!result?.ok) {
         setListening(false);
         ctx.flash(result?.error || 'Voice input is unavailable.');
+      }
+      // Stopped while the mic was still opening: close it, or it would stay on unseen.
+      if (!listening) {
+        stopDeepgram();
+        oa?.mic.close();
+        oa = null;
       }
     } catch (error) {
       stopDeepgram();
@@ -236,20 +272,25 @@ export function initVoice(ctx) {
     stopDeepgram();
     // The phrase in progress is sent and its words awaited (main does it for OpenAI).
     stopMic();
+    // The mic is off now: it says so at once, whatever the last phrase still takes.
+    const session = (sessions += 1);
+    setListening(false);
     await clips;
+    // (Dictating again already: its session is its own.)
+    if (session !== sessions) return;
     try {
       await window.api.voice.stop();
     } catch {
       /* already stopped */
     }
-    phraseBase = null;
+    if (session !== sessions) return;
     setListening(false);
   }
 
   /** Stopping dictation leaves what you said in the prompt bar; you send it yourself. */
   const toggle = () => (listening ? stop() : start());
 
-  // Tab, anywhere (but the terminal): talk to Katana. ` (backtick) in a chat: dictation.
+  // Ctrl+Shift+M, or ` (backtick) in a chat: dictation.
   document.addEventListener(
     'keydown',
     (event) => {
@@ -259,32 +300,20 @@ export function initVoice(ctx) {
         toggle();
         return;
       }
-      // Esc: stop listening (talking with Katana, or dictating).
-      if (event.key === 'Escape' && !document.querySelector('.dialog, .pop')) {
-        const call = ctx.live?.();
-        if (call?.active()) {
-          event.preventDefault();
-          call.stop();
-        } else if (listening) {
-          event.preventDefault();
-          stop();
-        }
+      // Esc: stop dictating.
+      if (event.key === 'Escape' && listening && !document.querySelector('.dialog:not(.is-leaving), .pop:not(.is-leaving)')) {
+        event.preventDefault();
+        stop();
         return;
       }
       if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || !event.isTrusted || event.repeat) return;
       if (event.target instanceof Element && event.target.closest('.xterm, .overlay, .pop, .dialog')) return;
-      // Tab: Katana's key, on any tab (open the mic, then Tab again sends). Stops dictation if that's on, without sending.
-      if (event.key === 'Tab') {
-        event.preventDefault();
-        if (listening) stop();
-        else ctx.toggleVoice();
-        return;
-      }
-      // `: dictation into the chat's prompt bar. With text already typed it's just a backtick
-      // (code in a prompt), unless you're dictating, when it stops (without sending).
+      // `: dictation. In a box with text in it it's just a backtick (code in a prompt), as in a
+      // key field, unless you're dictating, when it stops (without sending).
       if (event.key === '`' && ctx.chatShown()) {
-        const box = input();
-        const typing = box && document.activeElement === box && box.value.trim() && !listening;
+        const box = document.activeElement;
+        const field = box instanceof HTMLElement && box.matches('input, textarea');
+        const typing = field && !listening && (!isTextBox(box) || box.value.trim());
         if (typing) return;
         event.preventDefault();
         toggle();
@@ -295,7 +324,8 @@ export function initVoice(ctx) {
 
   window.api.voice.onError?.((message) => ctx.flash(`Dictation: ${message}`));
   window.api.voice.onText((text) => append(text));
-  window.api.voice.onPartial((text) => partial(text));
+  // The live engine's rough words, while a voice is being heard. (Not shown.)
+  window.api.voice.onLive?.(({ text, settled }) => phrases.live(text, settled));
   window.api.voice.onState((state) => {
     if (state === 'stopped') setListening(false);
     else if (state === 'error') {

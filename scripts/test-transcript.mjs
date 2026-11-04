@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { browserGame, createTranscript, exchanges, subagentCalls, writtenFiles } from '../src/renderer/js/transcript.js';
+import { browserGame, createTranscript, exchanges, liveSubagents, subagentCalls, writtenFiles } from '../src/renderer/js/transcript.js';
 
 const t0 = '2026-10-28T10:00:00.000Z';
 const line = (type, content, { message = {}, ...extra } = {}) => ({ type, uuid: `${type}-${Math.random()}`, timestamp: t0, ...extra, message: { role: type, content, ...message } });
@@ -34,7 +34,6 @@ const line = (type, content, { message = {}, ...extra } = {}) => ({ type, uuid: 
   // Claude Code's own lines are not prompts; side agents and meta lines are skipped
   const transcript = createTranscript();
   transcript.add([
-    line('user', '<command-name>/model</command-name>'),
     line('user', 'Caveat: the messages below were generated'),
     line('user', 'hidden', { isMeta: true }),
     line('assistant', [{ type: 'text', text: 'from a subagent' }], { isSidechain: true }),
@@ -113,6 +112,49 @@ const line = (type, content, { message = {}, ...extra } = {}) => ({ type, uuid: 
   const old = { tools: [{ name: 'Task', input: { subagent_type: 'general-purpose', model: 'haiku', description: 'Rename' }, result: null }] };
   assert.deepEqual(subagentCalls(old), [{ agent: 'general-purpose', model: 'haiku', what: 'Rename', state: 'running' }]);
   assert.deepEqual(subagentCalls({ tools: [] }), []);
+}
+
+// which sub-agents still work: each goes as it finishes, and none stays once it can't be running
+{
+  const transcript = createTranscript();
+  const stamp = '2026-10-29T10:00:00Z';
+  const launchedAt = Date.parse(stamp);
+  const call = (id) => ({ type: 'assistant', uuid: `c-${id}`, timestamp: stamp, message: { id: `m-${id}`, content: [{ type: 'tool_use', id, name: 'Agent', input: { subagent_type: 'deep', description: id } }] } });
+  const result = (id, meta) => ({ type: 'user', uuid: `r-${id}`, timestamp: stamp, toolUseResult: meta, message: { content: [{ type: 'tool_result', tool_use_id: id, content: 'x' }] } });
+  const news = (id, status) => `<task-notification>\n<task-id>a</task-id>\n<tool-use-id>${id}</tool-use-id>\n<status>${status}</status>\n</task-notification>`;
+  transcript.add([
+    { type: 'user', uuid: 'p', timestamp: stamp, message: { content: 'go' } },
+    call('fg1'),
+    call('fg2'),
+    call('bg1'),
+    call('bg2'),
+    result('bg1', { status: 'async_launched' }),
+    result('bg2', { status: 'async_launched' }),
+  ]);
+  const ex = () => exchanges(transcript.entries)[0];
+  const during = { turnLive: true, sessionOpen: true, since: launchedAt };
+  const live = (how = during) => liveSubagents(ex(), how).map((c) => `${c.what}:${c.state}`);
+  assert.deepEqual(live(), ['fg1:running', 'fg2:running', 'bg1:background', 'bg2:background']);
+  // one finishing takes only its own row
+  transcript.add([result('fg1', { status: 'completed' })]);
+  assert.deepEqual(live(), ['fg2:running', 'bg1:background', 'bg2:background']);
+  // the turn over: a foreground call that never answered goes, the background ones go on while the session is open
+  const idle = { turnLive: false, sessionOpen: true, since: launchedAt };
+  assert.deepEqual(live(idle), ['bg1:background', 'bg2:background']);
+  // an old transcript (no session), or a session resumed after the launch: nothing is left of them
+  assert.deepEqual(live({}), []);
+  assert.deepEqual(live({ turnLive: false, sessionOpen: true, since: launchedAt + 1 }), []);
+  // news queued while the lead works: Claude Code's queue, then an attachment, not a user line
+  assert.equal(transcript.add([{ type: 'queue-operation', operation: 'enqueue', timestamp: stamp, content: news('bg1', 'completed') }]), true);
+  assert.deepEqual(live(idle), ['bg2:background']);
+  assert.equal(transcript.add([{ type: 'attachment', uuid: 'a2', timestamp: stamp, attachment: { type: 'queued_command', prompt: news('bg2', 'failed') } }]), true);
+  assert.deepEqual(live(idle), []);
+  assert.equal(subagentCalls(ex()).find((c) => c.what === 'bg2').state, 'failed');
+  // other queued things aren't news, and nothing here reads as something you wrote
+  assert.equal(transcript.add([{ type: 'attachment', uuid: 'a3', attachment: { type: 'queued_command', prompt: 'another prompt' } }]), false);
+  assert.equal(exchanges(transcript.entries).length, 1);
+  // Esc: nothing stays
+  assert.deepEqual(liveSubagents({ ...ex(), interrupted: true }, during), []);
 }
 
 console.log('transcript ok');

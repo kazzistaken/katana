@@ -6,6 +6,35 @@
  * on body[data-theme]; text size scales the whole app.
  */
 
+/* The Glass style's words. */
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("../../node_modules/@fontsource/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-400-normal.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("../../node_modules/@fontsource/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-500-normal.woff2") format("woff2");
+  font-weight: 500;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("../../node_modules/@fontsource/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-600-normal.woff2") format("woff2");
+  font-weight: 600;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("../../node_modules/@fontsource/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-700-normal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: block;
+}
+
 @font-face {
   font-family: "Geist Mono";
   src: url("../../node_modules/@fontsource/geist-mono/files/geist-mono-latin-400-normal.woff2") format("woff2");
@@ -37,13 +66,16 @@
 /* ------------------------------ themes ------------------------------- */
 
 :root,
-body[data-theme="graphite"] {
+[data-theme="graphite"],
+[data-theme="night-lake"],
+[data-theme="rooftop-rain"],
+[data-theme="custom"] {
   color-scheme: dark;
-  --desk: #0c0f10;
-  --panel: #111617;
-  --raised: #1b1f25;
-  --row: #161b1e;
-  --field: #121618;
+  --desk-c: #0c0f10;
+  --panel-c: #111617;
+  --raised-c: #1b1f25;
+  --row-c: #161b1e;
+  --field-c: #121618;
   --line: #1f2426;
   --line-mid: #2e3336;
   --line-strong: #3b4044;
@@ -59,17 +91,17 @@ body[data-theme="graphite"] {
   --green: #4eba65;
   --orange: #d77757;
   --pink: #fd5db1;
-  --band: #2b2f32;
+  --band-c: #2b2f32;
   --shadow: rgba(0, 0, 0, 0.5);
 }
 
-body[data-theme="tokyo-night"] {
+[data-theme="tokyo-night"] {
   color-scheme: dark;
-  --desk: #13141c;
-  --panel: #1a1b26;
-  --raised: #24263a;
-  --row: #1f2030;
-  --field: #1b1c28;
+  --desk-c: #13141c;
+  --panel-c: #1a1b26;
+  --raised-c: #24263a;
+  --row-c: #1f2030;
+  --field-c: #1b1c28;
   --line: #262838;
   --line-mid: #343750;
   --line-strong: #414868;
@@ -85,17 +117,17 @@ body[data-theme="tokyo-night"] {
   --green: #9ece6a;
   --orange: #ff9e64;
   --pink: #f7768e;
-  --band: #292e42;
+  --band-c: #292e42;
   --shadow: rgba(0, 0, 0, 0.5);
 }
 
-body[data-theme="catppuccin"] {
+[data-theme="catppuccin"] {
   color-scheme: dark;
-  --desk: #11111b;
-  --panel: #1e1e2e;
-  --raised: #2a2a3c;
-  --row: #232334;
-  --field: #1f1f30;
+  --desk-c: #11111b;
+  --panel-c: #1e1e2e;
+  --raised-c: #2a2a3c;
+  --row-c: #232334;
+  --field-c: #1f1f30;
   --line: #2b2b3d;
   --line-mid: #3a3b50;
   --line-strong: #45475a;
@@ -111,17 +143,17 @@ body[data-theme="catppuccin"] {
   --green: #a6e3a1;
   --orange: #fab387;
   --pink: #f5c2e7;
-  --band: #313244;
+  --band-c: #313244;
   --shadow: rgba(0, 0, 0, 0.5);
 }
 
-body[data-theme="rose-pine"] {
+[data-theme="rose-pine"] {
   color-scheme: dark;
-  --desk: #121019;
-  --panel: #191724;
-  --raised: #24213a;
-  --row: #1f1d2e;
-  --field: #1b1928;
+  --desk-c: #121019;
+  --panel-c: #191724;
+  --raised-c: #24213a;
+  --row-c: #1f1d2e;
+  --field-c: #1b1928;
   --line: #26233a;
   --line-mid: #353148;
   --line-strong: #403d52;
@@ -137,17 +169,17 @@ body[data-theme="rose-pine"] {
   --green: #9ccfd8;
   --orange: #f6c177;
   --pink: #eb6f92;
-  --band: #26233a;
+  --band-c: #26233a;
   --shadow: rgba(0, 0, 0, 0.5);
 }
 
-body[data-theme="nord"] {
+[data-theme="nord"] {
   color-scheme: dark;
-  --desk: #242933;
-  --panel: #2e3440;
-  --raised: #3b4252;
-  --row: #343a47;
-  --field: #2f3542;
+  --desk-c: #242933;
+  --panel-c: #2e3440;
+  --raised-c: #3b4252;
+  --row-c: #343a47;
+  --field-c: #2f3542;
   --line: #3b4252;
   --line-mid: #465063;
   --line-strong: #4c566a;
@@ -163,18 +195,18 @@ body[data-theme="nord"] {
   --green: #a3be8c;
   --orange: #d08770;
   --pink: #b48ead;
-  --band: #3b4252;
+  --band-c: #3b4252;
   --shadow: rgba(0, 0, 0, 0.35);
 }
 
 /* Near black: the panels all but disappear into the desk. */
-body[data-theme="black"] {
+[data-theme="black"] {
   color-scheme: dark;
-  --desk: #000000;
-  --panel: #050505;
-  --raised: #111111;
-  --row: #0c0c0c;
-  --field: #060606;
+  --desk-c: #000000;
+  --panel-c: #050505;
+  --raised-c: #111111;
+  --row-c: #0c0c0c;
+  --field-c: #060606;
   --line: #171717;
   --line-mid: #242424;
   --line-strong: #313131;
@@ -190,19 +222,18 @@ body[data-theme="black"] {
   --green: #4eba65;
   --orange: #d77757;
   --pink: #fd5db1;
-  --band: #1c1c1c;
+  --band-c: #1c1c1c;
   --shadow: rgba(0, 0, 0, 0.7);
 }
 
-body[data-theme="light"] {
+[data-theme="light"] {
   color-scheme: light;
   --crimson: #b3203f;
-  --mint: #1d8a63;
-  --desk: #e4e6e6;
-  --panel: #fafbfb;
-  --raised: #eceef0;
-  --row: #f0f2f3;
-  --field: #f7f8f8;
+  --desk-c: #e4e6e6;
+  --panel-c: #fafbfb;
+  --raised-c: #eceef0;
+  --row-c: #f0f2f3;
+  --field-c: #f7f8f8;
   --line: #dcdfe0;
   --line-mid: #c9cdcf;
   --line-strong: #b4b9bc;
@@ -218,26 +249,112 @@ body[data-theme="light"] {
   --green: #2f8a43;
   --orange: #b85a37;
   --pink: #c2337f;
-  --band: #e6e8ea;
+  --band-c: #e6e8ea;
   --shadow: rgba(0, 0, 0, 0.12);
 }
 
+/* Quiet: a soft blue-grey ink; its type and outlines are toned down further on (Quiet theme). */
+[data-theme="quiet"] {
+  color-scheme: dark;
+  --desk-c: #131519;
+  --panel-c: #191c21;
+  --raised-c: #252930;
+  --row-c: #21252b;
+  --field-c: #1c1f25;
+  --line: #23272d;
+  --line-mid: #2e333a;
+  --line-strong: #3a4048;
+  --text: #e3e6ea;
+  --body: #c3c8cf;
+  --muted: #878e98;
+  --faint: #5b616a;
+  --edge: #a7aeb8;
+  --accent: #9fb6d1;
+  --on-accent: #131519;
+  --hover: rgba(227, 230, 234, 0.04);
+  --rose: #e08a80;
+  --green: #5cbf75;
+  --orange: #d9845f;
+  --pink: #f06bb5;
+  --band-c: #262a31;
+  --shadow: rgba(0, 0, 0, 0.45);
+}
+
 :root {
-  /* Katana's red: a GPT-Live call. */
+  /* Katana's red. */
   --crimson: #a3153a;
-  /* The mic is open (talking a turn at a time). */
-  --mint: #5fd3a8;
   --mono: "Geist Mono", "SF Mono", ui-monospace, Consolas, monospace;
   --r-panel: 10px;
   --r: 6px;
   --r-sm: 4px;
   --side: 257px;
   --column: 750px;
-  --settings-column: 583px;
+  --settings-column: 860px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --t-quick: 120ms;
   --t: 200ms;
   --t-slow: 320ms;
+}
+
+/* The surfaces: solid in Classic; tinted, see-through glass over a picture in Glass. */
+body {
+  --desk: var(--desk-c);
+  --panel: var(--panel-c);
+  --raised: var(--raised-c);
+  --row: var(--row-c);
+  --field: var(--field-c);
+  --band: var(--band-c);
+}
+
+body[data-style="glass"] {
+  --desk: color-mix(in srgb, var(--desk-c) 55%, transparent);
+  --panel: color-mix(in srgb, var(--panel-c) 50%, transparent);
+  --raised: color-mix(in srgb, var(--raised-c) 62%, transparent);
+  --row: color-mix(in srgb, var(--row-c) 45%, transparent);
+  --field: color-mix(in srgb, var(--field-c) 35%, transparent);
+  --band: color-mix(in srgb, var(--band-c) 55%, transparent);
+  --line: color-mix(in srgb, var(--text) 10%, transparent);
+  --glass-blur: blur(28px) saturate(1.35);
+  /* Rounder corners, and a readable sans for the words (code stays in --mono). */
+  --r-panel: 18px;
+  --r: 12px;
+  --r-sm: 8px;
+  --sans: "Atkinson Hyperlegible Next", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--sans);
+  font-variant-ligatures: normal;
+  /* Behind the glass: a dark aurora (soft colour and two ribbons of light), made to be seen blurred. */
+  background: url("img/glass-aurora.svg") center / cover no-repeat fixed, #0b0c18;
+}
+
+body[data-style="glass"] .ex-user,
+body[data-style="glass"] .key-btn,
+body[data-style="glass"] .md-code,
+body[data-style="glass"] .doc-body .md-code,
+body[data-style="glass"] .team-screen,
+body[data-style="glass"] .ex-user-image,
+body[data-style="glass"] .composer-image img {
+  border-radius: var(--r);
+}
+
+body[data-style="glass"] .composer,
+body[data-style="glass"] .media,
+body[data-style="glass"] .team-node {
+  border-radius: 16px;
+}
+
+/* The panels are clear glass: no blur, no outline. Pop-ups keep a blur, to be read over the words under them. */
+body[data-style="glass"] .pop,
+body[data-style="glass"] .dialog {
+  backdrop-filter: var(--glass-blur);
+}
+
+body[data-style="glass"] .panel {
+  border-color: transparent;
+}
+
+body[data-style="glass"] .overlay {
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(6px);
 }
 
 * {
@@ -462,11 +579,22 @@ body[data-blurred] .lights:not(:hover) .light {
   flex: none;
   width: 34px;
   height: 34px;
+  /* The middle of her picture (220 × 250), pixel for pixel. */
+  object-fit: cover;
+  object-view-box: inset(70px 27px 44px 57px);
+  image-rendering: pixelated;
 }
 
 .side-agent-name {
   font-size: 12px;
   font-weight: 700;
+}
+
+.side-rule {
+  flex: none;
+  height: 1px;
+  margin: 0 6px 6px;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .side-list {
@@ -496,6 +624,11 @@ body[data-blurred] .lights:not(:hover) .light {
   transition: background var(--t-quick) ease, border-color var(--t-quick) ease;
 }
 
+/* A little air between chats; a branch stays close under its parent. (The collapsed rail keeps its even rows.) */
+body:not([data-rail]) .side-task + .side-task:not(.is-branch) {
+  margin-top: 5px;
+}
+
 .side-task:hover {
   background: var(--hover);
 }
@@ -514,6 +647,35 @@ body[data-blurred] .lights:not(:hover) .light {
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* A branch's mark, on its name. */
+.side-task-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.branch-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.branch-mark[hidden] {
+  display: none;
+}
+
+.branch-mark svg {
+  width: 12px;
+  height: 12px;
+}
+
+.top-label .branch-mark {
+  margin-right: 5px;
+  vertical-align: -1px;
 }
 
 .side-task-title,
@@ -558,48 +720,74 @@ body[data-blurred] .lights:not(:hover) .light {
   border-color: var(--text);
 }
 
-/* Asking you something (a permission, a question in its terminal). */
-.task-dot.is-needs {
+/*
+ * Asking you something (a permission, a question in its terminal) or working:
+ * a shining dot. A highlight sweeps across it and it glows softly, like light
+ * moving over a bead, instead of blinking. Only opacity and transform move
+ * (a pre-drawn highlight and a pre-drawn glow), so it never repaints.
+ */
+.task-dot.is-needs,
+.task-dot.is-working,
+.status-dot.is-needs,
+.status-dot.is-working {
+  position: relative;
   border-color: transparent;
-  background: radial-gradient(circle at var(--shine) 30%, #fff 0, var(--text) 45%, color-mix(in srgb, var(--text) 60%, #000) 100%);
-  animation: shine 1.2s ease-in-out infinite;
 }
 
-/*
- * Working: a shining dot. A highlight sweeps across it and it glows softly,
- * like light moving over a bead, instead of blinking.
- */
-@property --shine {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 20%;
+.task-dot.is-needs,
+.status-dot.is-needs {
+  background: radial-gradient(circle at 50% 30%, var(--text) 45%, color-mix(in srgb, var(--text) 60%, #000) 100%);
 }
 
 .task-dot.is-working,
 .status-dot.is-working {
-  border-color: transparent;
-  background: radial-gradient(circle at var(--shine) 30%, #fff 0, color-mix(in srgb, var(--text) 85%, transparent) 22%, var(--muted) 62%, color-mix(in srgb, var(--muted) 50%, #000) 100%);
-  animation: shine 1.8s ease-in-out infinite;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--text) 85%, transparent) 0, var(--muted) 62%, color-mix(in srgb, var(--muted) 50%, #000) 100%);
 }
 
-@keyframes shine {
-  0% {
-    --shine: 18%;
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text) 0%, transparent);
-  }
+.task-dot.is-needs::before,
+.task-dot.is-working::before,
+.status-dot.is-needs::before,
+.status-dot.is-working::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--text) 30%, transparent);
+  opacity: 0;
+  animation: shine-glow 1.8s ease-in-out infinite;
+}
+
+.task-dot.is-needs::after,
+.task-dot.is-working::after,
+.status-dot.is-needs::after,
+.status-dot.is-working::after {
+  content: "";
+  position: absolute;
+  left: -5%;
+  top: -5%;
+  width: 60%;
+  height: 60%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0, rgba(255, 255, 255, 0.6) 35%, rgba(255, 255, 255, 0) 70%);
+  animation: shine-sweep 1.8s ease-in-out infinite;
+}
+
+.task-dot.is-needs::before,
+.task-dot.is-needs::after,
+.status-dot.is-needs::before,
+.status-dot.is-needs::after {
+  animation-duration: 1.2s;
+}
+
+@keyframes shine-sweep {
   50% {
-    --shine: 82%;
-    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--text) 30%, transparent);
-  }
-  100% {
-    --shine: 18%;
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text) 0%, transparent);
+    transform: translateX(75%);
   }
 }
 
-@keyframes breathe {
+@keyframes shine-glow {
   50% {
-    opacity: 0.35;
+    opacity: 1;
   }
 }
 
@@ -673,6 +861,10 @@ body[data-blurred] .lights:not(:hover) .light {
   transition: width var(--t-slow) var(--ease);
 }
 
+.usage-plan {
+  display: none;
+}
+
 .foot-more {
   width: 20px;
   height: 20px;
@@ -709,6 +901,7 @@ body[data-rail] .side-agent-name,
 body[data-rail] .side-agent-count,
 body[data-rail] .side-task-text,
 body[data-rail] .side-section,
+body[data-rail] .side-rule,
 body[data-rail] .side-empty,
 body[data-rail] .foot-project,
 body[data-rail] .usage {
@@ -897,6 +1090,36 @@ body[data-rail] .foot-more {
   margin-top: 6px;
 }
 
+/* Pictures you sent: just the pictures, no bubble or frame; your words, if any, under them. */
+.ex-user-group {
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 410px;
+}
+
+.ex-user-images {
+  align-self: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 410px;
+}
+
+.ex-user-image {
+  display: block;
+  max-width: 260px;
+  max-height: 220px;
+  object-fit: contain;
+}
+
+:is(.ex-user, .ex-user-images, .ex-user-group) + :is(.ex-user, .ex-user-images, .ex-user-group) {
+  margin-top: 6px;
+}
+
 .ex-status {
   display: flex;
   align-items: center;
@@ -916,12 +1139,6 @@ body[data-rail] .foot-more {
 
 .status-dot.is-failed {
   border-color: var(--rose);
-}
-
-.status-dot.is-needs {
-  border-color: transparent;
-  background: radial-gradient(circle at var(--shine) 30%, #fff 0, var(--text) 45%, color-mix(in srgb, var(--text) 60%, #000) 100%);
-  animation: shine 1.2s ease-in-out infinite;
 }
 
 /* Something that happened, said to the agent (a task finished, a reminder). */
@@ -1007,7 +1224,7 @@ button.review-row:hover {
 .ex-actions {
   display: flex;
   gap: 8px;
-  margin-top: 18px;
+  margin-top: 26px;
 }
 
 .key-btn {
@@ -1050,7 +1267,7 @@ button.review-row:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 36px;
+  margin-top: 22px;
 }
 
 .ex-files:empty {
@@ -1060,9 +1277,9 @@ button.review-row:hover {
 .file-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   height: 26px;
-  padding: 0 10px;
+  padding: 0 3px 0 10px;
   border: 1px solid var(--line-mid);
   border-radius: var(--r-sm);
   color: var(--text);
@@ -1079,10 +1296,30 @@ button.review-row:hover {
   background: var(--raised);
 }
 
-.file-chip small {
-  font-size: 9.5px;
-  font-weight: 400;
+.file-chip-open {
+  align-self: stretch;
+  font-weight: inherit;
+}
+
+/* Download: just the arrow. */
+.file-chip-save {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-sm);
   color: var(--muted);
+  transition: color var(--t-quick) ease, background var(--t-quick) ease;
+}
+
+.file-chip-save:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.file-chip-save svg {
+  width: 13px;
+  height: 13px;
 }
 
 .ex-media {
@@ -1100,6 +1337,13 @@ button.review-row:hover {
   border-radius: 12px;
   background: #000;
   object-fit: contain;
+}
+
+/* Pictures keep their own shape, set where the words start: no letterbox bars. */
+img.media {
+  width: auto;
+  max-width: 100%;
+  background: none;
 }
 
 audio.media {
@@ -1281,244 +1525,6 @@ audio.media {
   border-color: var(--line-strong);
 }
 
-/* ------------------------------ the agent ------------------------------ */
-
-/*
- * Her face, big (her picture's own shape, 220 × 250), and still, with her
- * words right under it, the whole group centred in the pane and never
- * scrolled. Everything under her has a fixed height (her reply a slot of
- * three lines, the line you said one, the button), so her size depends on
- * the pane alone and words coming and going never move her. The review
- * strip, when there is one, takes a capped box of its own and she gives
- * up that much height.
- */
-.stage.is-face {
-  container-type: size;
-  overflow: hidden;
-  -webkit-mask-image: none;
-  --words-h: 152px; /* .agent-said 14 + 67.5, .agent-heard 10 + 16, the button 18 + 26 */
-  --review-h: 0px;
-}
-
-.stage.is-face .column {
-  height: 100%;
-  padding: 0;
-}
-
-.agent-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: 24px 0;
-  box-sizing: border-box;
-  text-align: center;
-}
-
-.agent-stage.has-review {
-  --review-h: calc(min(170px, 24cqh) + 26px); /* the strip's box and its gap */
-}
-
-.agent-portrait {
-  height: min(720px, 70vh);
-  width: auto;
-  aspect-ratio: 220 / 250;
-  flex: none;
-}
-
-.stage.is-face .agent-portrait {
-  height: clamp(96px, calc(100cqh - 48px - var(--words-h) - var(--review-h)), 720px);
-}
-
-/* Her reply: a slot three lines tall whatever she says; more than fits fades out (the conversation has it all). */
-.agent-said {
-  display: flex;
-  flex-direction: column;
-  width: min(440px, calc(100% - 48px));
-  height: 67.5px; /* 3 lines of 15px × 1.5 */
-  margin-top: 14px;
-  flex: none;
-  overflow: hidden;
-}
-
-.agent-said .agent-reply {
-  flex: none;
-  max-width: none;
-  margin: 0;
-  display: block;
-  -webkit-line-clamp: unset;
-}
-
-.agent-said.is-long {
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
-}
-
-/* As she says it: the latest lines, the earlier ones fading off the top. */
-.agent-said:has(.is-live) {
-  justify-content: flex-end;
-}
-
-.agent-said.is-long:has(.is-live) {
-  -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 22px), transparent);
-}
-
-/* Her marks pixel for pixel (face.js sizes the canvas in device pixels): never smoothed. */
-canvas.agent-portrait,
-canvas.avatar {
-  image-rendering: pixelated;
-}
-
-/* Her words don't slide in under her face: nothing there moves. */
-.agent-stage .agent-reply {
-  animation: none;
-}
-
-/* On the light theme she keeps her own dark tile (face.js), with soft corners. */
-body[data-theme="light"] .agent-portrait,
-body[data-theme="light"] .avatar {
-  border-radius: 4%;
-}
-
-/* Her picture, when she can't be drawn: the same framing as the drawing. */
-.face-picture {
-  object-fit: cover;
-}
-
-.agent-heard {
-  max-width: min(440px, calc(100% - 48px));
-  height: 16px; /* one line, there or not */
-  margin: 10px 0 0;
-  flex: none;
-  line-height: 16px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: var(--muted);
-  font-size: 10.5px;
-}
-
-.agent-reply {
-  max-width: 440px;
-  margin: 12px 0 0;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  cursor: pointer;
-  animation: ex-in var(--t-slow) var(--ease);
-}
-
-.agent-reply.is-thinking {
-  color: var(--muted);
-  cursor: default;
-}
-
-.agent-reply.is-error {
-  color: var(--rose);
-}
-
-.talk-btn.mic-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  width: auto;
-  flex: none;
-  height: 26px;
-  margin-top: 18px;
-  padding: 0 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-sm);
-  color: var(--text);
-  font-size: 11px;
-  font-weight: 700;
-  animation: none;
-  transition: border-color var(--t-quick) ease, color var(--t-quick) ease, background var(--t-quick) ease;
-}
-
-.talk-btn:hover {
-  background: var(--hover);
-}
-
-.talk-btn kbd {
-  font-family: inherit;
-  font-size: 9px;
-  font-weight: 400;
-  color: var(--muted);
-}
-
-.talk-mic {
-  display: grid;
-}
-
-.talk-mic svg {
-  width: 12px;
-  height: 12px;
-}
-
-/* Listening: the button turns rose, and says so. */
-.talk-btn.mic-btn.is-listening {
-  border-color: var(--rose);
-  color: var(--rose);
-  background: color-mix(in srgb, var(--rose) 8%, transparent);
-}
-
-.talk-btn.is-listening .talk-label {
-  font-size: 0;
-}
-
-.talk-btn.is-listening .talk-label::before {
-  content: "Listening";
-  font-size: 11px;
-}
-
-.talk-btn.is-listening .talk-mic {
-  animation: breathe 1.2s ease-in-out infinite;
-}
-
-/* In a GPT-Live call: Katana's crimson, and the button hangs up. */
-.talk-btn.mic-btn.is-call {
-  border-color: var(--crimson);
-  color: var(--text);
-  background: color-mix(in srgb, var(--crimson) 14%, transparent);
-}
-
-.talk-btn.is-call .talk-label {
-  font-size: 11px;
-}
-
-.talk-btn.is-call .talk-label::before {
-  content: none;
-}
-
-.talk-btn.is-call .talk-mic {
-  color: var(--crimson);
-}
-
-/* Talking a turn at a time: mint means the mic is open, and nothing else does. */
-.talk-btn.mic-btn.is-turns {
-  color: var(--text);
-}
-
-.talk-btn.mic-btn.is-mic {
-  border-color: var(--mint);
-  color: var(--mint);
-  background: color-mix(in srgb, var(--mint) 10%, transparent);
-}
-
-.talk-btn.is-mic .talk-mic {
-  animation: breathe 1.2s ease-in-out infinite;
-}
-
-/* What she's saying, as she says it: no entrance on every word. */
-.agent-reply.is-live {
-  animation: none;
-  cursor: default;
-}
-
 .key-row {
   display: flex;
   align-items: center;
@@ -1529,32 +1535,11 @@ body[data-theme="light"] .avatar {
   margin: 0;
 }
 
-.agent-stage .review {
-  flex: none;
-  box-sizing: border-box;
-  width: min(440px, calc(100% - 48px));
-  max-height: min(170px, 24cqh); /* its own box: a long list scrolls inside it, never the page */
-  overflow-y: auto;
-  margin: 26px 0 0;
-  padding: 14px 0 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 0;
-  text-align: left;
-}
-
-/* The face has no prompt bar on show, but dictation still writes into it. */
-.foot.is-ghost {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-}
-
 .chat {
   position: relative;
 }
+
+/* ------------------------------ the agent ------------------------------ */
 
 /* The agent's welcome (no conversation yet). */
 .newtask-art {
@@ -1586,6 +1571,37 @@ body[data-theme="light"] .avatar {
   border-radius: var(--r);
   overflow: hidden;
   background: var(--panel);
+}
+
+/*
+ * A text document beside the chat, like a side panel: the chat and its
+ * prompt bar on the left, the document on the right (the sidebar folds to a rail).
+ */
+.chat.is-doc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 50%);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.chat.is-doc > .stage {
+  grid-area: 1 / 1;
+}
+
+.chat.is-doc > .foot {
+  grid-area: 2 / 1;
+}
+
+.viewer.is-side {
+  grid-area: 1 / 2 / 3 / 3;
+  margin: 0 12px 12px 0;
+  animation: side-in var(--t) var(--ease);
+}
+
+@keyframes side-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
 }
 
 .viewer iframe {
@@ -1870,6 +1886,34 @@ body[data-theme="light"] .avatar {
   text-decoration-color: currentColor;
 }
 
+/* Copy and Download: an icon with its word. */
+.doc-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  color: var(--body);
+  white-space: nowrap;
+  transition: color var(--t-quick) ease, background var(--t-quick) ease;
+}
+
+.doc-action:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.doc-action-icon {
+  display: grid;
+}
+
+.doc-action-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
 .doc-close {
   display: grid;
   flex: none;
@@ -2027,6 +2071,14 @@ body[data-theme="light"] .avatar {
   padding: 0 0 16px;
 }
 
+/* On the bar's top edge: a notice on the left, the task's settings on the right. A notice too long to share the line takes its own, above them. */
+.foot-over {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  column-gap: 12px;
+}
+
 .chat-banner {
   margin: 0 0 8px;
   color: var(--rose);
@@ -2034,6 +2086,7 @@ body[data-theme="light"] .avatar {
 }
 
 .foot-meta {
+  flex: 1 0 auto;
   display: flex;
   justify-content: flex-end;
   gap: 5px;
@@ -2046,8 +2099,18 @@ body[data-theme="light"] .avatar {
   color: var(--text);
 }
 
+/* Sub-agents mode's models: chosen for you (an Opus lead, the sub-agents it picks), so said rather than a picker. */
+.foot-meta button.is-fixed {
+  cursor: default;
+}
+
+.foot-meta button.is-fixed:hover {
+  color: inherit;
+}
+
 .composer {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 9px;
   margin: 0;
@@ -2063,6 +2126,60 @@ body[data-theme="light"] .avatar {
 .composer:focus-within {
   border-color: var(--text);
   border-top-color: color-mix(in srgb, var(--text) 45%, var(--line));
+}
+
+.composer.is-dropping {
+  border-color: var(--text);
+  border-style: dashed;
+}
+
+/* Pictures waiting to be sent: just the pictures; one dims on hover, click takes it out. */
+.composer-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-basis: 100%;
+  margin-bottom: 2px;
+}
+
+.composer-images[hidden] {
+  display: none;
+}
+
+.composer-image {
+  position: relative;
+}
+
+.composer-image img {
+  display: block;
+  height: 64px;
+  max-width: 160px;
+  object-fit: contain;
+}
+
+/* Its × shows on the one you're pointing at; only that takes it away. */
+.composer-image-x {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #101214;
+  opacity: 0;
+}
+
+.composer-image-x svg {
+  width: 12px;
+  height: 12px;
+}
+
+.composer-image:hover .composer-image-x,
+.composer-image-x:focus-visible {
+  opacity: 1;
 }
 
 .composer-caret {
@@ -2259,7 +2376,12 @@ body[data-theme="light"] .avatar {
 
 .context-pop {
   width: 260px;
-  padding: 8px 10px 10px;
+  padding: 12px 14px 14px;
+}
+
+/* The popover's padding sets the left edge here, so the title brings no margin of its own. */
+.context-pop .pop-title {
+  margin: 0 0 10px;
 }
 
 .context-row + .context-row {
@@ -2279,7 +2401,7 @@ body[data-theme="light"] .avatar {
 .context-bar {
   display: block;
   height: 4px;
-  margin-top: 5px;
+  margin-top: 8px;
   border-radius: 1px;
   background: var(--line);
   overflow: hidden;
@@ -2298,16 +2420,135 @@ body[data-theme="light"] .avatar {
 
 /* ------------------------------ terminal ------------------------------ */
 
+/*
+ * The >_ view: the session in a console frame. A header says where it
+ * stands, who runs it and where, with its buttons; under it the terminal,
+ * on a well a shade darker than the panel.
+ */
 .terminal {
+  position: relative;
   display: flex;
   flex-direction: column;
-  padding: 0 9px 12px 16px;
+  padding: 2px 14px 14px;
+  --term-bg: color-mix(in srgb, var(--desk-c) 62%, var(--panel-c));
+}
+
+.term-frame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-mid);
+  border-radius: 12px;
+  background: var(--term-bg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent), 0 18px 40px -26px var(--shadow);
+  overflow: hidden;
+}
+
+.term-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 42px;
+  padding: 0 8px 0 15px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--raised) 40%, transparent);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.term-status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.term-head[data-state="off"] .term-status {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.status-dot.is-off {
+  border-color: var(--faint);
+}
+
+.term-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+}
+
+.term-who {
+  flex: none;
+  color: var(--body);
+}
+
+.term-where {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.term-where:not(:empty)::before {
+  content: "/";
+  margin-right: 10px;
+  color: var(--faint);
+}
+
+.term-tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.term-tools .key-btn {
+  height: 26px;
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+.term-note-text {
+  color: var(--faint);
+}
+
+.term-sizes {
+  display: inline-flex;
+  border: 1px solid var(--line-mid);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.term-size {
+  width: 30px;
+  height: 24px;
+  color: var(--muted);
+  font-size: 10.5px;
+  transition: color var(--t-quick) ease, background var(--t-quick) ease;
+}
+
+.term-size + .term-size {
+  border-left: 1px solid var(--line-mid);
+}
+
+.term-size:hover {
+  color: var(--text);
+  background: var(--hover);
 }
 
 .term-stage {
   position: relative;
   flex: 1;
   min-height: 0;
+  margin: 12px 6px 10px 16px;
 }
 
 .term-host {
@@ -2319,70 +2560,131 @@ body[data-theme="light"] .avatar {
   scrollbar-width: none;
 }
 
-.term-host .xterm,
-.term-host .xterm-viewport,
-.term-host .xterm-scrollable-element {
-  background: var(--panel) !important;
-}
-
-.term-bar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.term-bar .key-btn {
-  height: 24px;
-  margin-left: auto;
+/* Its words on the frame's well (or the glass), no slab of their own. */
+.term-host :is(.xterm, .xterm-viewport, .xterm-screen, .xterm-rows, .xterm-scrollable-element) {
+  background: transparent !important;
 }
 
 .term-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   margin: auto;
   color: var(--muted);
   font-size: 12px;
+  text-align: center;
 }
 
-.terminal {
-  position: relative;
+.term-empty p {
+  margin: 0;
+}
+
+.term-empty-mark {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line-mid);
+  border-radius: 12px;
+  color: var(--faint);
+}
+
+.term-empty-mark svg {
+  width: 22px;
+  height: 22px;
+}
+
+.term-empty .term-empty-hint {
+  color: var(--faint);
+  font-size: 11px;
 }
 
 /* ------------------------------ settings ------------------------------ */
 
 .settings-page {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   overflow-y: auto;
 }
 
+/* Stays put while the page scrolls: shares the page's one grid cell, so it takes no room of its own. */
 .settings-close {
-  position: absolute;
+  grid-area: 1 / 1;
+  justify-self: end;
+  align-self: start;
+  position: sticky;
   top: 12px;
-  right: 10px;
+  z-index: 1;
+  margin: 12px 10px 0 0;
 }
 
 .settings-inner {
-  width: min(var(--settings-column), calc(100% - 64px));
+  grid-area: 1 / 1;
+  display: grid;
+  grid-template-columns: 148px minmax(0, var(--settings-column));
+  justify-content: center;
+  gap: 0 56px;
+  /* (Margins wide enough that nothing scrolls under the close button.) */
+  width: calc(100% - 96px);
   margin: 0 auto;
   padding: 40px 0 90px;
 }
 
+/* The sections: stays put while the settings scroll; the one you're in is lit. */
+.set-nav {
+  position: sticky;
+  top: 40px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.set-nav-item {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+  transition: color var(--t-quick) ease, background var(--t-quick) ease;
+}
+
+.set-nav-item:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.set-nav-item[aria-current="true"] {
+  color: var(--text);
+  background: var(--row);
+}
+
+/* Too narrow for both: just the settings. */
+@media (max-width: 900px) {
+  .settings-inner {
+    grid-template-columns: minmax(0, var(--settings-column));
+  }
+
+  .set-nav {
+    display: none;
+  }
+}
+
 .set-group {
-  display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  scroll-margin-top: 40px;
 }
 
 .set-group + .set-group {
-  margin-top: 74px;
+  margin-top: 64px;
 }
 
 .set-group-label {
-  margin: 0;
-  font-size: 12px;
+  margin: 0 0 22px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 18px;
 }
@@ -2420,6 +2722,24 @@ body[data-theme="light"] .avatar {
 .set-field.is-stacked {
   flex-direction: column;
   gap: 9px;
+}
+
+/* No background's colour: a row of dots, the chosen one ringed. */
+.flat-dots {
+  display: flex;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.flat-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.28);
+}
+
+.flat-dot[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.28), var(--mac-ring, 0 0 0 2px var(--text));
 }
 
 .chips {
@@ -2669,19 +2989,6 @@ body[data-motion="reduced"] .thinking-dots i {
   }
 }
 
-/* The mic's pulse while listening: held still on Reduced (Off already stops everything). */
-body[data-motion="reduced"] .talk-btn.is-listening .talk-mic,
-body[data-motion="reduced"] .talk-btn.is-mic .talk-mic {
-  animation: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  body[data-motion="full"] .talk-btn.is-listening .talk-mic,
-  body[data-motion="full"] .talk-btn.is-mic .talk-mic {
-    animation: none;
-  }
-}
-
 /* ------------------------------- motion ------------------------------- */
 
 body[data-motion="reduced"] {
@@ -2702,4 +3009,793 @@ body[data-motion="off"] *::after {
     --t: 90ms;
     --t-slow: 120ms;
   }
+}
+
+/* ------------------------- theme swatches --------------------------- */
+
+/* A theme's look in miniature, in its own colours: its panel, a line of text, its accent. */
+.chip-opt.has-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding-left: 5px;
+}
+
+.theme-swatch {
+  display: flex;
+  width: 30px;
+  height: 20px;
+  overflow: hidden;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.swatch-part {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 4px;
+  background: var(--panel-c);
+}
+
+.swatch-part i {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--text);
+}
+
+.swatch-part b {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+/* -------------------------- top-bar trail --------------------------- */
+
+.top-sep {
+  margin: 0 7px;
+  color: var(--faint);
+}
+
+.top-here {
+  color: var(--body);
+}
+
+/* --------------------------- Katana: intro --------------------------- */
+
+.intro-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 22px;
+}
+
+.intro-starter {
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--r);
+  background: var(--row);
+  color: var(--body);
+  font-size: 12px;
+  transition: background var(--t-quick) ease, color var(--t-quick) ease;
+}
+
+.intro-starter:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.intro-news {
+  margin-top: 30px;
+}
+
+.intro-news-title {
+  margin: 0 0 6px;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.intro-news-row {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.8;
+}
+
+/* ----------------------------- Quiet theme ---------------------------- */
+
+/*
+ * Less bold: rows and labels at regular weight; only what's selected, unread
+ * or a heading stands out. Fewer outlines: selection and buttons are shaded,
+ * not boxed; only where you type (and floating menus) keep an edge.
+ * Surfaces come from the theme's variables, so Glass tints them too.
+ */
+body[data-theme="quiet"] .side-task {
+  font-weight: 400;
+  color: var(--body);
+}
+
+body[data-theme="quiet"] .side-task.is-active,
+body[data-theme="quiet"] .side-task:has(.is-unread) {
+  font-weight: 600;
+  color: var(--text);
+}
+
+body[data-theme="quiet"] .side-task.is-done {
+  color: var(--muted);
+}
+
+body[data-theme="quiet"] .side-agent-name,
+body[data-theme="quiet"] .ex-head,
+body[data-theme="quiet"] .md-heading,
+body[data-theme="quiet"] .doc-body .md-heading,
+body[data-theme="quiet"] .sum-name,
+body[data-theme="quiet"] .newtask-greeting,
+body[data-theme="quiet"] .newtask-title,
+body[data-theme="quiet"] .set-group-label,
+body[data-theme="quiet"] .dialog-title,
+body[data-theme="quiet"] .doc-body b {
+  font-weight: 600;
+}
+
+body[data-theme="quiet"] .key-btn,
+body[data-theme="quiet"] .file-chip,
+body[data-theme="quiet"] .review-name,
+body[data-theme="quiet"] .foot-project,
+body[data-theme="quiet"] .folder-name,
+body[data-theme="quiet"] .btn:not(.btn-primary):not(.btn-danger),
+body[data-theme="quiet"] .app-back,
+body[data-theme="quiet"] .menu-item.is-on,
+body[data-theme="quiet"] .effort-steps button[aria-pressed="true"],
+body[data-theme="quiet"] .chip-opt[aria-pressed="true"],
+body[data-theme="quiet"] .dialog-choice-label,
+body[data-theme="quiet"] .ex-team-row b {
+  font-weight: 500;
+}
+
+body[data-theme="quiet"] .key-btn kbd,
+body[data-theme="quiet"] .composer-caret {
+  font-weight: 400;
+}
+
+body[data-theme="quiet"] .side-agent.is-active,
+body[data-theme="quiet"] .side-task.is-active,
+body[data-theme="quiet"] .icon.is-active {
+  border-color: transparent;
+  background: var(--raised);
+}
+
+body[data-theme="quiet"] .key-btn {
+  border-color: transparent;
+  background: var(--raised);
+}
+
+body[data-theme="quiet"] .key-btn:hover {
+  border-color: transparent;
+  background: var(--line-mid);
+}
+
+body[data-theme="quiet"] .key-btn.is-quiet {
+  background: transparent;
+}
+
+body[data-theme="quiet"] .key-btn.is-quiet:hover {
+  background: var(--raised);
+}
+
+body[data-theme="quiet"] .file-chip,
+body[data-theme="quiet"] .btn:not(.btn-primary):not(.btn-danger),
+body[data-theme="quiet"] .app-back,
+body[data-theme="quiet"] .dialog-choice {
+  border-color: transparent;
+  background: var(--row);
+}
+
+body[data-theme="quiet"] .file-chip:hover,
+body[data-theme="quiet"] .file-chip.is-open,
+body[data-theme="quiet"] .btn:not(.btn-primary):not(.btn-danger):hover,
+body[data-theme="quiet"] .app-back:hover,
+body[data-theme="quiet"] .dialog-choice:hover {
+  border-color: transparent;
+  background: var(--raised);
+}
+
+/* The main button of a dialog is filled; a dangerous one keeps its red edge. */
+body[data-theme="quiet"] .btn-primary {
+  border-color: transparent;
+  background: var(--text);
+  color: var(--desk-c);
+}
+
+body[data-theme="quiet"] .btn-primary:hover {
+  background: color-mix(in srgb, var(--text) 85%, transparent);
+}
+
+/* A row of choices is one control: the choice you made is shaded inside it. */
+body[data-theme="quiet"] .chips {
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r);
+  background: var(--field);
+}
+
+body[data-theme="quiet"] .chip-opt {
+  border-color: transparent;
+}
+
+body[data-theme="quiet"] .chip-opt[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--raised);
+}
+
+/* The prompt bar keeps an edge (you type there), a quiet one until you're in it. */
+body[data-theme="quiet"] .composer {
+  border-width: 1px;
+  border-color: var(--line-strong);
+}
+
+body[data-theme="quiet"] .composer:focus-within {
+  border-color: var(--edge);
+}
+
+/* ============================== Glass ================================ */
+
+/*
+ * The Glass style's own look and motion. Classic draws with outlines; Glass
+ * draws with frosted fills and soft light, and moves with a little spring.
+ * Only body[data-style="glass"] is touched: Classic stays as it is.
+ */
+body[data-style="glass"] {
+  --fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --fill-hover: color-mix(in srgb, var(--text) 11%, transparent);
+  --fill-strong: color-mix(in srgb, var(--text) 16%, transparent);
+  /* Selected and hovered rows everywhere: lit glass, not dark blocks. */
+  --row: var(--fill-hover);
+  --hover: var(--fill);
+  --sheen: inset 0 1px 0 color-mix(in srgb, #fff 9%, transparent);
+  --spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+
+/* Surfaces: a deep soft shadow under them. */
+body[data-style="glass"] .panel {
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+body[data-style="glass"] .pop {
+  border-color: color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 14px;
+  box-shadow: var(--sheen), 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+
+body[data-style="glass"] .dialog {
+  border-color: color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 20px;
+  box-shadow: var(--sheen), 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+
+body[data-style="glass"] .menu-item {
+  border-radius: 9px;
+  transition: background var(--t-quick) ease;
+}
+
+/* Buttons and chips: frosted pills, no outlines. */
+body[data-style="glass"] :is(.key-btn, .btn, .chip-opt) {
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--fill);
+  box-shadow: var(--sheen);
+  transition: background var(--t-quick) ease, color var(--t-quick) ease, transform var(--t-quick) ease, box-shadow var(--t-quick) ease;
+}
+
+body[data-style="glass"] :is(.key-btn, .btn, .chip-opt):hover {
+  border-color: transparent;
+  background: var(--fill-hover);
+}
+
+body[data-style="glass"] :is(.key-btn, .btn, .chip-opt, .icon, .side-task, .menu-item):active {
+  transform: scale(0.97);
+}
+
+body[data-style="glass"] .key-btn.is-quiet {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--fill-strong);
+}
+
+body[data-style="glass"] .chip-opt[aria-pressed="true"],
+body[data-style="glass"] .btn-primary {
+  border-color: transparent;
+  background: var(--text);
+  color: var(--desk-c);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+body[data-style="glass"] .btn-primary:hover {
+  background: color-mix(in srgb, var(--text) 88%, transparent);
+}
+
+body[data-style="glass"] .btn-danger {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--rose) 16%, transparent);
+}
+
+body[data-style="glass"] .btn-danger:hover {
+  background: color-mix(in srgb, var(--rose) 24%, transparent);
+}
+
+body[data-style="glass"] .icon {
+  border-radius: 10px;
+}
+
+body[data-style="glass"] .icon:hover {
+  background: var(--fill);
+}
+
+body[data-style="glass"] .icon.is-active {
+  border-color: transparent;
+  background: var(--fill-strong);
+  box-shadow: var(--sheen);
+}
+
+/* The sidebar: the open task is lit, not outlined. */
+body[data-style="glass"] .side-task {
+  transition: background var(--t-quick) ease, transform var(--t-quick) ease, box-shadow var(--t-quick) ease;
+}
+
+body[data-style="glass"] .side-task:hover {
+  background: var(--fill);
+}
+
+body[data-style="glass"] .side-task.is-active {
+  border-color: transparent;
+  background: var(--fill-strong);
+  box-shadow: var(--sheen);
+}
+
+/* The usage meter: a rounded track, not a dotted tail. */
+body[data-style="glass"] .usage-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fill-strong);
+  overflow: hidden;
+}
+
+body[data-style="glass"] .usage-bar span {
+  border-radius: 2px;
+}
+
+/* Words and code. */
+body[data-style="glass"] .ex-user {
+  background: var(--fill);
+  box-shadow: var(--sheen);
+}
+
+body[data-style="glass"] :is(.md-code, .doc-body .md-code) {
+  border-color: transparent;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px var(--fill);
+}
+
+/* No dither behind the empty stage: the glass is the texture. */
+body[data-style="glass"] .stage.is-new {
+  background-image: none;
+}
+
+/* The prompt bar: a soft halo when it has your attention. */
+body[data-style="glass"] .composer {
+  border: 1px solid var(--fill-strong);
+  background: color-mix(in srgb, var(--panel-c) 55%, transparent);
+  box-shadow: var(--sheen), 0 8px 30px rgba(0, 0, 0, 0.25);
+  transition: border-color var(--t) ease, box-shadow var(--t) ease;
+}
+
+body[data-style="glass"] .composer:focus-within {
+  border-color: color-mix(in srgb, var(--text) 32%, transparent);
+  box-shadow: var(--sheen), 0 0 0 4px var(--fill), 0 10px 36px rgba(0, 0, 0, 0.3);
+}
+
+body[data-style="glass"] .composer.is-dropping {
+  border-style: solid;
+  border-color: var(--text);
+  box-shadow: var(--sheen), 0 0 0 5px var(--fill-strong), 0 0 40px color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+/* Settings: toggles that snap over, swatches that match the corners. */
+body[data-style="glass"] .toggle {
+  background: var(--fill-strong);
+}
+
+body[data-style="glass"] .toggle::after {
+  transition: transform var(--t-slow) var(--spring), background var(--t) ease;
+}
+
+body[data-style="glass"] .toggle[aria-checked="true"] {
+  background: var(--text);
+}
+
+body[data-style="glass"] .toggle[aria-checked="true"]::after {
+  background: var(--desk-c);
+}
+
+body[data-style="glass"] .theme-swatch {
+  border-radius: 7px;
+}
+
+/* The terminal: its frame is glass too. */
+body[data-style="glass"] .terminal {
+  --term-bg: color-mix(in srgb, var(--desk-c) 40%, transparent);
+}
+
+body[data-style="glass"] .term-host .xterm-scrollable-element .slider {
+  border-radius: 999px;
+}
+
+
+/* ------------------------------ motion ------------------------------ */
+
+@keyframes glass-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+    filter: blur(6px);
+  }
+}
+
+@keyframes glass-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.94);
+    filter: blur(4px);
+  }
+}
+
+@keyframes glass-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+    filter: blur(4px);
+  }
+}
+
+@keyframes glass-fade {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+
+@keyframes glass-veil {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+}
+
+@keyframes glass-chip {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+/* Full motion only (Reduced keeps Classic's quiet fades; Off stops everything). */
+@media (prefers-reduced-motion: no-preference) {
+  body[data-style="glass"][data-motion="full"] .pane {
+    animation: glass-fade var(--t-slow) var(--ease);
+  }
+
+  body[data-style="glass"][data-motion="full"] .pop {
+    animation: glass-pop 280ms var(--spring);
+  }
+
+  body[data-style="glass"][data-motion="full"] .overlay {
+    animation: glass-veil 260ms ease;
+  }
+
+  body[data-style="glass"][data-motion="full"] .dialog {
+    animation: glass-pop 360ms var(--spring);
+  }
+
+  /* Something new in the chat: its pieces come up one after another. */
+  body[data-style="glass"][data-motion="full"] .ex.is-new {
+    animation: none;
+  }
+
+  body[data-style="glass"][data-motion="full"] .ex.is-new > * {
+    animation: glass-rise 520ms var(--ease) both;
+  }
+
+  body[data-style="glass"][data-motion="full"] .ex.is-new > :is(.ex-user, .ex-user-images, .ex-user-group) {
+    animation-name: glass-in-left;
+  }
+
+  body[data-style="glass"][data-motion="full"] .ex.is-new > :nth-child(2) { animation-delay: 70ms; }
+  body[data-style="glass"][data-motion="full"] .ex.is-new > :nth-child(3) { animation-delay: 140ms; }
+  body[data-style="glass"][data-motion="full"] .ex.is-new > :nth-child(4) { animation-delay: 210ms; }
+  body[data-style="glass"][data-motion="full"] .ex.is-new > :nth-child(n + 5) { animation-delay: 280ms; }
+
+  body[data-style="glass"][data-motion="full"] .newtask {
+    animation: glass-rise 560ms var(--ease) both;
+  }
+
+  body[data-style="glass"][data-motion="full"] .composer-image {
+    animation: glass-chip 320ms var(--spring);
+  }
+
+  /* Hover: buttons lift a hair toward you. */
+  body[data-style="glass"][data-motion="full"] :is(.key-btn, .btn):hover {
+    transform: translateY(-1px);
+  }
+
+  body[data-style="glass"][data-motion="full"] :is(.key-btn, .btn):active {
+    transform: scale(0.97);
+  }
+}
+
+/* ============================== Scenes =============================== */
+
+/*
+ * Night lake and Rooftop rain: Graphite, with a black-and-white scene moving
+ * behind the main panel (js/scene.js paints it at its back; body[data-scene]
+ * is set while one is on). The sidebar and
+ * everything else stay Graphite; inside the chat the surfaces turn to smoked
+ * glass so the night shows through, and the words stand right on the scene.
+ */
+body[data-scene] .main {
+  position: relative;
+  isolation: isolate;
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* Full screen: the scene fills the window, and both panels are clear over it (only their outlines). */
+body[data-backdrop="window"] > .scene {
+  position: fixed;
+  border-radius: 0;
+}
+
+body[data-scene][data-backdrop="window"] .panel {
+  background: transparent;
+  border-color: rgba(230, 233, 235, 0.1);
+}
+
+/* The sidebar has no tint of its own: its words get a little shadow to stand on. */
+body[data-scene][data-backdrop="window"] .sidebar {
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8);
+  --panel: rgba(10, 13, 14, 0.62);
+  --raised: rgba(30, 34, 39, 0.66);
+  --row: rgba(10, 13, 14, 0.35);
+  --field: rgba(12, 15, 17, 0.6);
+  --band: rgba(43, 47, 50, 0.6);
+  --hover: rgba(255, 255, 255, 0.05);
+}
+
+/* Inside the chat, the terminal and Settings, Graphite's surfaces become smoked glass. */
+body[data-scene] :is(.chat, .terminal, .settings-page) {
+  --panel: rgba(10, 13, 14, 0.62);
+  --raised: rgba(30, 34, 39, 0.66);
+  --row: rgba(26, 30, 33, 0.6);
+  --field: rgba(12, 15, 17, 0.6);
+  --band: rgba(43, 47, 50, 0.6);
+  --hover: rgba(255, 255, 255, 0.05);
+}
+
+/* No tint over the scene: words stand on a little shadow of their own. */
+body[data-scene] .stage {
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.75);
+}
+
+/* The dot texture on the empty stage would sit over the sky. */
+body[data-scene] .stage.is-new {
+  background-image: none;
+}
+
+body[data-scene] :is(.md-code, .md-pre) {
+  background: rgba(6, 8, 9, 0.72);
+}
+
+body[data-scene] .composer {
+  background: rgba(10, 13, 14, 0.72);
+}
+
+/* The terminal: its words right on the scene. */
+body[data-scene] .terminal {
+  --term-bg: transparent;
+}
+
+body[data-scene] .term-host .xterm-rows {
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+}
+
+body[data-scene] .term-frame {
+  border-color: rgba(198, 203, 205, 0.13);
+  backdrop-filter: blur(3px);
+  box-shadow: inset 0 1px 0 rgba(230, 234, 236, 0.05), 0 24px 60px -30px rgba(0, 0, 0, 0.9);
+}
+
+body[data-scene] .term-head {
+  background: rgba(22, 26, 28, 0.55);
+}
+
+body[data-scene] .term-empty {
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.75);
+}
+
+/* Settings: the scene behind, a little shadow under the words. */
+body[data-scene] .settings-page {
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.75);
+}
+
+/* Its swatch: the night itself. */
+.swatch-part[data-theme="night-lake"] {
+  background:
+    radial-gradient(circle at 26% 28%, #eef2f4 0 1.6px, transparent 2.2px),
+    linear-gradient(180deg, #05080a 0%, #14181a 52%, #3a3f41 60%, #0b0f10 64%, #1c2022 78%, #05080a 100%);
+}
+
+.swatch-part[data-theme="rooftop-rain"] {
+  background:
+    repeating-linear-gradient(105deg, transparent 0 3px, rgba(220, 226, 232, 0.16) 3px 4px),
+    linear-gradient(180deg, #1c1e20 0%, #3b3e41 40%, #0e0f10 58%, #1f2123 100%);
+}
+
+/* No background (scene.js): the window and the panels are one flat colour, --flat-c (app.js). */
+[data-theme="none"] {
+  --desk-c: var(--flat-c);
+  --panel-c: var(--flat-c);
+}
+
+/* Settings: each theme picked from a picture of its scene. */
+.chip-opt.has-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  width: 196px;
+  height: auto;
+  padding: 5px 5px 7px;
+  text-align: left;
+}
+
+.chip-opt.has-preview span {
+  padding: 0 3px;
+}
+
+.theme-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 2px;
+  object-fit: cover;
+  opacity: 0.7;
+  transition: opacity var(--t-quick) ease;
+}
+
+.chip-opt.has-preview:hover .theme-preview,
+.chip-opt.has-preview[aria-pressed="true"] .theme-preview {
+  opacity: 1;
+}
+
+/* Pictures dragged over Settings: the whole page takes them. (Over the page, never in the way of the drop.) */
+.bg-drop {
+  position: absolute;
+  inset: 12px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--edge);
+  border-radius: var(--r-sm);
+  background: rgba(8, 9, 10, 0.72);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.bg-drop[hidden] {
+  display: none;
+}
+
+/* Your own backgrounds: a × in the corner of each (on hover or focus), and the tile that adds one. */
+.chip-wrap {
+  position: relative;
+  display: flex;
+}
+
+.chip-remove {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(8, 9, 10, 0.72);
+  color: var(--text);
+  opacity: 0;
+  transition: opacity var(--t-quick) ease, background var(--t-quick) ease;
+}
+
+.chip-remove svg {
+  width: 13px;
+  height: 13px;
+}
+
+.chip-wrap:hover .chip-remove,
+.chip-remove:focus-visible {
+  opacity: 1;
+}
+
+.chip-remove:hover {
+  background: rgba(8, 9, 10, 0.92);
+}
+
+.chip-opt.has-preview span.theme-add {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px dashed var(--line-mid);
+  color: var(--muted);
+  opacity: 1;
+  transition: color var(--t-quick) ease, border-color var(--t-quick) ease;
+}
+
+.theme-add svg {
+  width: 22px;
+  height: 22px;
+}
+
+.chip-opt.is-add:hover .theme-add {
+  border-color: var(--edge);
+  color: var(--text);
+}
+
+/* The / menu over the prompt bar: name, what comes after it, what it does, on one line. */
+.slash-pop {
+  max-height: min(340px, 55vh);
+  overflow-y: auto;
+}
+
+.menu-item.slash-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.slash-name,
+.slash-hint {
+  flex: none;
+}
+
+.slash-hint {
+  color: var(--faint);
+}
+
+.slash-about {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-align: right;
+  text-overflow: ellipsis;
 }

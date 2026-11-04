@@ -1,0 +1,466 @@
+/*
+ * Slate (Settings > Look > Style, body[data-look="slate"]): one flat blue-grey,
+ * no scene and no glass, one monospace face for everything, and a dot grid behind
+ * the chat. It stands on the macOS style's layout and motion: app.js keeps
+ * data-style="macos", turns on data-dark (for its light words and edges) and paints
+ * no scene (data-scene="none"), so this file only has to change how things look.
+ *
+ * Three steps up from the panels: --slate-raise (fields, code, what floats),
+ * --slate-hover (a row under the pointer, what's selected), --slate-accent (buttons).
+ */
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../../node_modules/@fontsource/geist-mono/files/geist-mono-latin-300-normal.woff2") format("woff2");
+  font-weight: 300;
+  font-display: block;
+}
+
+body[data-look="slate"][data-style="macos"][data-dark] {
+  --slate-raise: #3a4250;
+  --slate-hover: #3e4653;
+  --slate-accent: #4f5868;
+  --slate-accent-up: #5a6474;
+  --slate-edge: #525b6a;
+  --slate-line: #3e4653;
+  --slate-bright: #d5d8da;
+
+  --panel-c: #2f3642;
+  --desk-c: #262c36;
+  --band-c: #3a4250;
+  --sans: var(--mono);
+  --text: #eceeef;
+  --body: #dde0e4;
+  /* (Both at least 4.5:1 on the panels.) */
+  --muted: #b4bac4;
+  --faint: #a2a9b4;
+  --edge: #8d95a3;
+  --accent: #eceeef;
+  --on-accent: #262c36;
+  --hover: var(--slate-hover);
+
+  --line: var(--slate-line);
+  --line-mid: #475060;
+  --line-strong: var(--slate-edge);
+
+  --mac-5: var(--slate-raise);
+  --mac-7: var(--slate-raise);
+  --mac-10: var(--slate-hover);
+  --mac-select: var(--slate-hover);
+  --mac-on-select: #ffffff;
+  --mac-fill: var(--slate-raise);
+  --mac-fill-strong: var(--slate-accent);
+  --mac-hairline: var(--slate-line);
+  --mac-card: var(--slate-raise);
+  --mac-glass: var(--slate-raise);
+  --mac-glass-filter: none;
+  --mac-glass-edge: 0 0 0 1px var(--slate-edge);
+  --mac-ring: 0 0 0 2px var(--edge);
+
+  --r-panel: 10px;
+  --r: 6px;
+  --r-sm: 5px;
+
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: -0.02em;
+}
+
+body[data-look="slate"][data-style="macos"]:not([data-rail]) {
+  --side: 280px;
+}
+
+/* (Slid out over the rail, and on its way in and out.) */
+body[data-look="slate"][data-style="macos"][data-peek] .sidebar,
+body[data-look="slate"][data-style="macos"] .sidebar.is-holding {
+  width: 280px;
+}
+
+/* Settings, menus and dialogs keep the same steps rather than the dark style's stronger glass. */
+body[data-look="slate"][data-style="macos"][data-dark] :is(.settings-page, .pop, .dialog, .viewer.is-side) {
+  --mac-5: var(--slate-raise);
+  --mac-7: var(--slate-raise);
+  --mac-10: var(--slate-hover);
+  --mac-card: var(--slate-raise);
+  --mac-glass: var(--slate-raise);
+  --mac-select: var(--slate-accent);
+  --mac-fill: var(--slate-hover);
+  --mac-fill-strong: var(--slate-accent);
+  --muted: #b4bac4;
+  --faint: #a2a9b4;
+  --body: #dde0e4;
+}
+
+body[data-look="slate"][data-style="macos"] ::selection {
+  background: var(--slate-accent);
+}
+
+/* ------------------------------ the panels ------------------------------ */
+
+body[data-look="slate"][data-style="macos"] .panel {
+  border-color: var(--slate-line);
+}
+
+/* The chat stands on a faint dot grid, with a thin light along its top edge. */
+body[data-look="slate"][data-style="macos"][data-scene="none"] .panel.main {
+  position: relative;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.07) 1px, transparent 1.4px) 0 0 / 22px 22px, var(--flat-c) !important;
+}
+
+body[data-look="slate"][data-style="macos"] .panel.main::before {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #8d95a3 50%, transparent);
+  pointer-events: none;
+}
+
+body[data-look="slate"][data-style="macos"] .topbar {
+  border-bottom: 1px solid var(--slate-line);
+}
+
+/* ------------------------------- the sidebar ----------------------------- */
+
+/* The window's buttons: plain icons, in the order Windows has them. */
+body[data-look="slate"][data-style="macos"] .lights {
+  gap: 2px;
+  margin-left: -2px;
+}
+
+body[data-look="slate"][data-style="macos"] .light {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--muted);
+  transform: none;
+}
+
+body[data-look="slate"][data-style="macos"] .light svg {
+  width: 11px;
+  height: 11px;
+  opacity: 1;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+body[data-look="slate"][data-style="macos"] .light:hover {
+  background: var(--slate-hover);
+  color: var(--text);
+  transform: none;
+}
+
+body[data-look="slate"][data-style="macos"] .light-close {
+  order: 3;
+}
+
+body[data-look="slate"][data-style="macos"] .light-max {
+  order: 2;
+}
+
+body[data-look="slate"][data-style="macos"] .light-max svg {
+  display: none;
+}
+
+body[data-look="slate"][data-style="macos"] .light-max::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border: 1px solid currentColor;
+  border-radius: 1.5px;
+}
+
+body[data-look="slate"][data-style="macos"] .side-new {
+  border: 0;
+  border-radius: var(--r);
+  background: var(--slate-accent);
+  color: var(--text);
+  font-weight: 500;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+body[data-look="slate"][data-style="macos"] .side-new:hover {
+  background: var(--slate-accent-up);
+}
+
+body[data-look="slate"][data-style="macos"] .side-rule {
+  background: var(--slate-line);
+  border-color: var(--slate-line);
+}
+
+body[data-look="slate"][data-style="macos"] .avatar {
+  border-radius: var(--r);
+}
+
+body[data-look="slate"][data-style="macos"] .side-agent-name {
+  font-weight: 500;
+}
+
+/* Tall rows, easy to hit. (The rail keeps its short pills.) */
+body[data-look="slate"][data-style="macos"]:not([data-rail]) .side-task {
+  min-height: 50px;
+  height: auto;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+body[data-look="slate"][data-style="macos"] .side-task-title {
+  font-weight: 500;
+}
+
+body[data-look="slate"][data-style="macos"] .side-task:hover,
+body[data-look="slate"][data-style="macos"] .side-agent:hover {
+  background: var(--slate-raise);
+}
+
+body[data-look="slate"][data-style="macos"] .glide {
+  background: var(--slate-hover);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+body[data-look="slate"][data-style="macos"][data-blurred] .glide {
+  background: var(--slate-raise);
+}
+
+/* -------------------------------- the marks ------------------------------ */
+
+/* Working: a soft diamond, breathing. */
+body[data-look="slate"][data-style="macos"] :is(.task-dot, .status-dot).is-working {
+  border-color: #c5cad1;
+  border-radius: 3px;
+  background: var(--slate-accent);
+  transform: rotate(45deg);
+  animation: slate-breathe 1.9s ease-in-out infinite;
+}
+
+body[data-look="slate"][data-style="macos"] :is(.task-dot, .status-dot).is-working::before {
+  display: none;
+}
+
+@keyframes slate-breathe {
+  50% {
+    border-color: var(--slate-accent-up);
+  }
+}
+
+/* Needs you, or something new: solid and bright, the one thing that stands out in the list. */
+body[data-look="slate"][data-style="macos"] :is(.task-dot, .status-dot):is(.is-needs, .is-unread) {
+  border-color: var(--text);
+  background: var(--text);
+}
+
+body[data-look="slate"][data-style="macos"] :is(.task-dot, .status-dot).is-needs::before {
+  border-color: var(--text);
+}
+
+/* ------------------------------- the new task ---------------------------- */
+
+body[data-look="slate"][data-style="macos"] .newtask-greeting {
+  margin-bottom: 26px;
+  color: #f5f6f7;
+  font-size: clamp(24px, 2.4vw, 34px);
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+body[data-look="slate"][data-style="macos"] .newtask .foot-meta {
+  justify-content: center;
+  margin-right: 0;
+  color: var(--muted);
+}
+
+body[data-look="slate"][data-style="macos"] :is(.newtask-with, .newtask-today) {
+  color: var(--muted);
+}
+
+body[data-look="slate"][data-style="macos"] .newtask-with .chooser {
+  color: var(--text);
+}
+
+/* ------------------------------- the prompt bar --------------------------- */
+
+body[data-look="slate"][data-style="macos"] .composer,
+body[data-look="slate"][data-style="macos"] .newtask .composer {
+  border: 1px solid var(--slate-edge);
+  border-radius: 8px;
+  background: var(--slate-raise);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+body[data-look="slate"][data-style="macos"][data-dark] .composer:focus-within {
+  border-color: var(--edge);
+  background: var(--slate-raise);
+  box-shadow: none;
+}
+
+body[data-look="slate"][data-style="macos"] .composer-input::placeholder {
+  color: var(--muted);
+}
+
+body[data-look="slate"][data-style="macos"] .dictate-btn {
+  border-radius: var(--r);
+  background: var(--slate-accent);
+  color: var(--text);
+}
+
+body[data-look="slate"][data-style="macos"] .dictate-btn:hover {
+  background: var(--slate-accent-up);
+}
+
+body[data-look="slate"][data-style="macos"] .dictate-btn.is-listening {
+  background: var(--slate-bright);
+  color: #262c36;
+}
+
+/* --------------------------------- the chat ------------------------------- */
+
+body[data-look="slate"][data-style="macos"] .ex-user-text {
+  border-radius: 8px;
+  background: var(--slate-raise);
+  backdrop-filter: none;
+}
+
+body[data-look="slate"][data-style="macos"] .ex-head {
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+body[data-look="slate"][data-style="macos"] .md-pre,
+body[data-look="slate"][data-style="macos"] .md-table {
+  border: 1px solid var(--slate-line);
+  border-radius: 8px;
+  background: var(--slate-raise);
+}
+
+body[data-look="slate"][data-style="macos"] .md-code {
+  border-radius: 4px;
+  background: var(--slate-raise);
+}
+
+body[data-look="slate"][data-style="macos"] .md-pre-actions button:hover {
+  background: var(--slate-accent);
+}
+
+body[data-look="slate"][data-style="macos"] .key-btn {
+  border: 0;
+  border-radius: var(--r);
+  background: var(--slate-accent);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+body[data-look="slate"][data-style="macos"] .key-btn:hover {
+  background: var(--slate-accent-up);
+}
+
+body[data-look="slate"][data-style="macos"] .key-btn.is-quiet {
+  background: var(--slate-raise);
+}
+
+body[data-look="slate"][data-style="macos"] .key-btn.is-finishing,
+body[data-look="slate"][data-style="macos"] .key-btn.is-finishing:hover {
+  background: var(--slate-bright);
+  color: #262c36;
+}
+
+body[data-look="slate"][data-style="macos"] .file-chip {
+  background: var(--slate-raise);
+  backdrop-filter: none;
+}
+
+/* ------------------------------- what floats ------------------------------ */
+
+body[data-look="slate"][data-style="macos"][data-dark] :is(.pop, .dialog) {
+  border: 1px solid var(--slate-edge);
+  border-radius: 10px;
+  background: var(--slate-raise);
+  backdrop-filter: none;
+  box-shadow: 0 10px 30px rgba(15, 19, 26, 0.4);
+}
+
+/* (At full motion the dim is its own layer, the overlay's ::before.) */
+body[data-look="slate"][data-style="macos"][data-dark] .overlay,
+body[data-look="slate"][data-style="macos"][data-dark][data-motion="full"] .overlay::before {
+  background: rgba(23, 27, 34, 0.55);
+  backdrop-filter: none;
+}
+
+body[data-look="slate"][data-style="macos"][data-dark][data-motion="full"] .overlay {
+  background: transparent;
+}
+
+body[data-look="slate"][data-style="macos"][data-dark] :is(.viewer.is-side, .chat-banner, .bg-drop) {
+  background: var(--slate-raise);
+  backdrop-filter: none;
+}
+
+body[data-look="slate"][data-style="macos"] .menu-item:hover,
+body[data-look="slate"][data-style="macos"] .menu-item:focus-visible {
+  background: var(--slate-accent);
+}
+
+body[data-look="slate"][data-style="macos"] .menu-sep {
+  background: var(--slate-edge);
+}
+
+/* The effort slider's rail, on the raised grey. */
+body[data-look="slate"][data-style="macos"] .effort-rail {
+  background: var(--slate-accent);
+}
+
+body[data-look="slate"][data-style="macos"] .effort-fill {
+  background: #aab1bc;
+}
+
+body[data-look="slate"][data-style="macos"] .effort-thumb {
+  background: #eceeef;
+}
+
+/* ------------------------------- the settings ------------------------------ */
+
+body[data-look="slate"][data-style="macos"][data-dark] .set-fields {
+  border: 1px solid var(--slate-line);
+  background: #353c49;
+  backdrop-filter: none;
+}
+
+body[data-look="slate"][data-style="macos"] .set-nav .glide {
+  background: var(--slate-hover);
+}
+
+body[data-look="slate"][data-style="macos"] .text-field {
+  border: 1px solid var(--slate-edge);
+  background: var(--slate-raise);
+  backdrop-filter: none;
+}
+
+body[data-look="slate"][data-style="macos"][data-dark] .toggle {
+  background: var(--slate-accent);
+  backdrop-filter: none;
+}
+
+body[data-look="slate"][data-style="macos"][data-dark] .toggle[aria-checked="true"] {
+  background: var(--slate-bright);
+}
+
+body[data-look="slate"][data-style="macos"][data-dark] .toggle[aria-checked="true"]::after {
+  background: #262c36;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-look="slate"][data-style="macos"] :is(.task-dot, .status-dot).is-working {
+    animation: none;
+  }
+}

@@ -26,15 +26,27 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 // Settings are checked before they change: known keys, right types, real choices.
 {
-  assert.deepEqual(checkSetting('theme', 'black'), { key: 'theme', value: 'black' });
+  assert.deepEqual(checkSetting('theme', 'rooftop-rain'), { key: 'theme', value: 'rooftop-rain' });
   assert.match(checkSetting('theme', 'pink').error, /one of/);
+  // The colour themes are gone.
+  assert.match(checkSetting('theme', 'graphite').error, /one of/);
+  // No background is a setting of its own, not a theme.
+  assert.deepEqual(checkSetting('noBackground', 'on'), { key: 'noBackground', value: true });
+  assert.deepEqual(checkSetting('noBackground', false), { key: 'noBackground', value: false });
+  assert.match(checkSetting('theme', 'none').error, /one of/);
+  assert.match(TOOLS.find((t) => t.name === 'set_setting').description, /noBackground/);
+  // Its colour is one from the row, by id.
+  assert.deepEqual(checkSetting('noBackgroundColor', 'blue'), { key: 'noBackgroundColor', value: 'blue' });
+  assert.match(checkSetting('noBackgroundColor', 'teal').error, /one of graphite, blue, purple, pink, red, orange, yellow, green/);
+  assert.match(checkSetting('noBackgroundColor', '#383838').error, /one of/);
+  assert.match(TOOLS.find((t) => t.name === 'set_setting').description, /noBackgroundColor/);
   assert.deepEqual(checkSetting('ding', 'off'), { key: 'ding', value: false });
   assert.deepEqual(checkSetting('ding', true), { key: 'ding', value: true });
   assert.deepEqual(checkSetting('agentModel', 'opus'), { key: 'agentModel', value: 'claude-opus-5-5' });
   assert.match(checkSetting('taskModel', 'gpt').error, /opus, sonnet, haiku/);
-  // Sub-agents mode: a mode new tasks can run in, with its main session's model
+  // Sub-agents mode: a mode new tasks can run in; its models are fixed (an Opus lead, Haiku sub-agents), not a setting
   assert.deepEqual(checkSetting('taskMode', 'subagents'), { key: 'taskMode', value: 'subagents' });
-  assert.deepEqual(checkSetting('subagentsModel', 'haiku'), { key: 'subagentsModel', value: 'claude-haiku-5-5' });
+  assert.match(checkSetting('subagentsModel', 'haiku').error, /no setting/);
   // new_task's mode (hierarchy: true still asks for a team)
   assert.equal(taskModeOf('subagents'), 'subagents');
   assert.equal(taskModeOf('hierarchy'), 'hierarchy');
@@ -47,7 +59,7 @@ const here = dirname(fileURLToPath(import.meta.url));
   assert.match(checkSetting('currentProject', 'x').error, /no setting/);
   assert.match(checkSetting('nonsense', 1).error, /no setting/);
   assert.match(checkSetting('shell', 'zsh', { shells: [{ value: '' }, { value: 'pwsh' }] }).error, /shell is one of/);
-  assert.deepEqual(checkSetting('liveVoiceName', 'cedar'), { key: 'liveVoiceName', value: 'cedar' });
+  assert.match(checkSetting('liveVoiceName', 'cedar').error, /no setting/);
 }
 
 // Keys for a terminal: named ones as their bytes, the rest as typed.
@@ -152,10 +164,11 @@ assert.deepEqual(keyBytes(['1', 'enter', 'Down', 'esc', 'ctrl+c', 'yes']), ['1',
   assert.deepEqual(await tools.call('stop_app', {}), { already: 'No app has run beside that task.' });
 
   // Katana: shown, and answered once its window is up
-  const started = await tools.call('run_app', { command: 'npm run dev' });
+  await assert.rejects(tools.call('run_app', { command: 'npm run dev' }), /Which page/, 'it doesn’t run apps');
+  const started = await tools.call('run_app', { page: 'C:/code/shop/index.html' });
   assert.deepEqual(opened, ['t1']);
-  assert.deepEqual(ran, [['t1', { command: 'npm run dev', page: '', show: true }]]);
-  assert.equal(started.running, 'npm start (electron .)');
+  assert.deepEqual(ran, [['t1', { page: 'C:/code/shop/index.html', show: true }]]);
+  assert.equal(started.running, 'C:/code/shop/index.html');
   assert.equal(started.status, 'running');
   assert.deepEqual(started.windows, ['Shop']);
 
@@ -163,7 +176,7 @@ assert.deepEqual(keyBytes(['1', 'enter', 'Down', 'esc', 'ctrl+c', 'yes']), ['1',
   current = 't2';
   await tools.call('run_app', { task: 't1', page: 'C:/code/shop/index.html', from: 'task' });
   assert.deepEqual(opened, ['t1'], 'the screen stays where you are');
-  assert.deepEqual(ran.at(-1), ['t1', { command: '', page: 'C:/code/shop/index.html', show: false }]);
+  assert.deepEqual(ran.at(-1), ['t1', { page: 'C:/code/shop/index.html', show: false }]);
   current = 't1';
 
   // its output, and the errors it logged (waiting for the user's next message)
@@ -193,10 +206,10 @@ assert.deepEqual(keyBytes(['1', 'enter', 'Down', 'esc', 'ctrl+c', 'yes']), ['1',
   await assert.rejects(tools.call('run_app', { task: 'nope' }), /no task nope/);
   // a refusal (an untrusted folder) is the tool's error
   ctx.runApp = async () => ({ error: 'Apps only run in a trusted folder.' });
-  await assert.rejects(tools.call('run_app', {}), /trusted folder/);
+  await assert.rejects(tools.call('run_app', { page: 'a.html' }), /trusted folder/);
   // it ended straight away: said so
   ctx.runApp = async (id) => ((state = { label: 'x', status: 'failed', exitCode: 1, windows: [] }), { ...state, taskId: id });
-  await assert.rejects(tools.call('run_app', {}), /ended right away \(exit code 1\)/);
+  await assert.rejects(tools.call('run_app', { page: 'a.html' }), /ended right away \(exit code 1\)/);
 }
 
 // A task's own session reaches only the viewer tools, only for its own task, with its own token.

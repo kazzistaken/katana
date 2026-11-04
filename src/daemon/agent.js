@@ -7,7 +7,7 @@
  * her own session, with the app's controls as tools (toolport.js → a window,
  * or headless.js when none is open) besides a normal agent's.
  *
- * She's woken by you ([user] typed, [voice] said), by a task finishing
+ * She's woken by you ([user]), by a task finishing
  * ([finished]), by her reminders ([reminder]) and by her recurring checks
  * ([check]); one turn at a time. What she remembers (her session, the
  * conversation, reminders, checks) is kept in <userData>/agent.json, which
@@ -36,6 +36,7 @@ const path = require('node:path');
 const { startRun, cancelRun } = require('../main/claude');
 const { writeIfChanged } = require('../main/statefile');
 const { transcriptPath } = require('../main/tasks');
+const { codexLastAnswer } = require('../main/codex');
 
 const RUN_ID = 'agent';
 const RESUME_GONE = /No conversation found|session.*not found/i;
@@ -74,9 +75,11 @@ function parseReply(text) {
   return value;
 }
 
-/** A Claude task's last words, from the end of its transcript (no window needed). */
+/** A task's last words, from the end of its transcript (a Codex one's rollout; no window needed). */
 function lastAnswer(task) {
-  if (task.kind !== 'claude' || !task.started || !task.sessionId) return '';
+  if (!task.started || !task.sessionId) return '';
+  if (task.kind === 'codex') return codexLastAnswer(task.sessionId);
+  if (task.kind !== 'claude') return '';
   const file = transcriptPath(task.cwd, task.sessionId);
   let fd = null;
   try {
@@ -108,11 +111,10 @@ function lastAnswer(task) {
 function instructions(folder) {
   return `You are Katana, the agent inside the user's coding app (also called Katana). The app runs the user's coding tasks: each task is a real Claude Code (or Codex, or shell) session in one of the user's trusted folders, run by a background process, so tasks keep going when the app's window is closed. You run the app for the user: anything they could do in it with the mouse and keyboard, you do with your tools. You also have a normal agent's tools (read and search files in the trusted folders, the web; with bypass permissions on, also commands and edits).
 
-The user sees your reply in big text and may hear it spoken. When the app's window is closed, your answers to [finished], [reminder] and a met [check] reach them as a Windows notification instead, so make those stand on their own. Be brief and plain, like a calm colleague: one to three short sentences, no lists or headings unless asked.
+The user sees your reply in the app's chat. When the app's window is closed, your answers to [finished], [reminder] and a met [check] reach them as a Windows notification instead, so make those stand on their own. Be brief and plain, like a calm colleague: one to three short sentences, no lists or headings unless asked.
 
 Every message starts with a tag, then a summary of the app's state (time, whether a window is open, folders, tasks):
 - [user]: the user typed something.
-- [voice]: the user said it out loud (your reply is spoken: by GPT-Live in its own words, or read out as you wrote it). The words are a transcript, so allow for mishearing; ask when it matters. Reply in one or two spoken sentences, never Markdown, ids or paths; end with a question only when you need an answer (the mic opens again for it).
 - [finished]: a task just finished; say what it did and whether it needs the user (to try it, merge it, or answer).
 - [reminder]: a reminder you set is due; tell the user.
 - [check]: one of your recurring checks (set with watch) is due. Look now with your tools. If its condition isn't met yet, your whole reply is NOT YET and nothing else (the user isn't told). If it is met, your reply tells the user what happened; that ends the check. If you can't tell (an error, no access), say what's wrong instead of NOT YET; that ends it too.
@@ -122,13 +124,13 @@ How to work:
 - Coding work goes to tasks: start one with new_task, or send_to_task to continue an existing task's own work. Split big work into tasks that don't touch the same files; use a worktree when two tasks share a folder.
 - When a task needs the user (state "needs"), read_terminal to see the question. Answer it with press_keys only when the user already told you what to choose; otherwise ask them.
 - Only delete, discard or remove things when the user asked for exactly that.
-- "Run it", "show me the app": run_app runs the task's app (or shows a web page) live in the app viewer, where the user can use it. To test it yourself: app_screenshot to see it, then app_click, app_type, app_key, app_scroll; read_app_output for its console and logged errors; stop_app ends it. Test there, never in separate windows. Task sessions have the same tools for their own app.
+- "Show me the page": run_app shows a web page (an HTML file, a browser game) in the browser beside its task, where the user can use it. It doesn't run desktop apps. To test it yourself: app_screenshot to see it, then app_click, app_type, app_key, app_scroll; read_app_output for its console and logged errors; stop_app ends it. Test there, never in separate windows. Task sessions have the same tools for their own app.
 - With no window open, tools that change the screen (show, open_file, run_app) and ones the user must confirm (trust_folder, remove_folder) can't run; say so instead.
 - Settings, themes, what's on screen, reminders, checks, folders: all yours to change when asked.
 - "Every N minutes, check X and tell me when Y" is a check: use watch, not remind. Write its check so it stands on its own (what to look at, how, and what counts as met).
 - Short questions about the app or its tasks: answer from app_state, read_task or read_terminal.
 - A task in hierarchy mode is run by a team: its own session is the Leader (send_to_task, read_task and read_terminal reach the leader), which splits the work across up to 4 worker sessions and 2 verifiers and merges what passes. app_state shows each member's state; you hear once when the whole task finishes, not per member.
-- A task in sub-agents mode is one Claude Code session (Sonnet by default) that hands pieces of the work to its own sub-agents: builder on Sonnet for most work, deep on Opus for hard problems, quick on Haiku for tiny fixes. Talk to it like any task. For new_task: single for small or focused work, subagents for mixed work that benefits from cheaper models on the easy parts, hierarchy for big work with separable parts.
+- A task in sub-agents mode is one Claude Code session on Opus that leads (plans, checks the work) and hands each piece to a sub-agent it picks: quick on Haiku for simple fixes, builder on Sonnet for hard work and logic, deep on Opus for complicated systems and hard bugs. Talk to it like any task. For new_task: single for small or focused work, subagents for mixed work, hierarchy for big work with separable parts.
 - "This", "that" or "it" with nothing else named means what's on screen (the "On screen" line): "commit this" on a task's page means that task.
 - Your own folder is ${folder}: keep notes, lists and scratch files there; it's yours across turns.`;
 }
@@ -146,8 +148,9 @@ function normalize(saved = {}) {
   return {
     sessionId: saved.sessionId || '',
     messages: Array.isArray(saved.messages) ? saved.messages.slice(-HISTORY) : [],
-    reminders: Array.isArray(saved.reminders) ? saved.reminders : [],
-    watches: Array.isArray(saved.watches) ? saved.watches : [],
+    // (Copies: the saved state core.js reads is shared and never changed.)
+    reminders: Array.isArray(saved.reminders) ? [...saved.reminders] : [],
+    watches: Array.isArray(saved.watches) ? [...saved.watches] : [],
   };
 }
 
@@ -161,6 +164,7 @@ function createAgent({ userDataDir, readState, snapshot, emit, toolsConfig, aler
   let busy = false;
   let since = 0;
   let activity = '';
+  const tools = new Map(); // her tools running now (id → what); none while she thinks
   let turn = null; // { text, chunks, retried, kind, askId, note }
   let saveTimer = 0;
   const checking = new Set(); // checks queued or being looked at now
@@ -223,7 +227,7 @@ function createAgent({ userDataDir, readState, snapshot, emit, toolsConfig, aler
       const last = lastAnswer(task);
       // Hierarchy mode: run by a team (its leader is the task's session); one line for the team.
       // Sub-agents mode: one session delegating to its sub-agents.
-      const crew = task.mode === 'hierarchy' ? ` — hierarchy (leader + team): ${team(task.id).join('; ') || 'no subtasks yet'}` : task.mode === 'subagents' ? ' — sub-agents (one session delegating to builder/Sonnet, deep/Opus, quick/Haiku)' : '';
+      const crew = task.mode === 'hierarchy' ? ` — hierarchy (leader + team): ${team(task.id).join('; ') || 'no subtasks yet'}` : task.mode === 'subagents' ? ' — sub-agents (an Opus lead picking quick/Haiku, builder/Sonnet, deep/Opus)' : '';
       lines.push(`- ${task.id} "${task.title}" in ${where} (${task.kind}${task.worktree && !task.merged ? ', worktree' : ''}) — ${stateName}${task.doneAt ? ', done' : ''}${crew}${last ? ` — last said: "${clip(last, LAST_WORDS)}"` : ''}`);
     }
     if (data.reminders.length) lines.push(`Reminders: ${data.reminders.map((r) => `"${r.text}" at ${new Date(r.at).toLocaleTimeString()}`).join('; ')}`);
@@ -267,6 +271,7 @@ function createAgent({ userDataDir, readState, snapshot, emit, toolsConfig, aler
     busy = true;
     since = Date.now();
     activity = '';
+    tools.clear();
     emit('agent:busy', status());
     const item = queue.shift();
     // A turn that can't even start (its config, the disk) ends as an error, not busy forever.
@@ -279,6 +284,7 @@ function createAgent({ userDataDir, readState, snapshot, emit, toolsConfig, aler
     turn = null;
     busy = false;
     activity = '';
+    tools.clear();
     if (done?.kind === 'check') checked(done.watchId, { error, text });
     else if (error) {
       say('error', error);
@@ -305,6 +311,10 @@ function createAgent({ userDataDir, readState, snapshot, emit, toolsConfig, aler
     } else if (event.type === 'assistant' && event.text) turn.chunks.push(event.text);
     else if (event.type === 'tool') {
       activity = String(event.tool || '').replace(/^mcp__katana__/, '').replace(/_/g, ' ') + (event.detail && !/^mcp__/.test(event.tool) ? ` ${event.detail}` : '');
+      tools.set(event.id || Symbol('tool'), activity);
+      emit('agent:busy', status());
+    } else if (event.type === 'tool-result' && tools.delete(event.id)) {
+      activity = [...tools.values()].at(-1) || '';
       emit('agent:busy', status());
     } else if (event.type === 'result') {
       // Her last words: what she says after using her tools.

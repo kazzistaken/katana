@@ -39,6 +39,7 @@ export function createTaskClient({ api, store }) {
         since: Date.now(),
         tool: null,
         running: false,
+        startedAt: 0, // when this window started its session (0: it was already running)
         loaded: false,
         message: '',
         finishedAt: 0,
@@ -69,18 +70,45 @@ export function createTaskClient({ api, store }) {
 
   /* ------------------------------ events ------------------------------ */
 
-  /** Claude Code's short title names the task, unless you named it yourself. */
+  /**
+   * A branch's session is a copy of another's, so Claude remembers all of it,
+   * but the chat starts empty: only what's said after the branch began is shown.
+   * (Claude Code keeps a copied line's own time: a new line is later than the cut.)
+   */
+  function ownLines(task, lines) {
+    if (!task?.forkOf || !Array.isArray(lines)) return lines;
+    const cut = task.branchedAt || task.createdAt || 0;
+    return lines.filter((line) => {
+      const at = Date.parse(line?.timestamp || '');
+      return !at || at >= cut;
+    });
+  }
+
+  /** Claude Code's short title names the task until the AI's own arrives, unless you named it yourself. */
   function adoptTitle(id) {
     const task = store.task(id);
     const title = get(id).transcript.title();
-    if (task && title && !task.named && task.title !== title) store.renameTask(id, title);
+    if (task && title && !task.named && !task.aiTitled && task.title !== title) store.renameTask(id, title);
   }
+
+  // Titled from your messages, after each one (daemon/tasktitle.js).
+  api.task.onTitle?.(({ id, title }) => store.aiTitle(id, title));
 
   api.task.onState((update) => apply(update));
 
-  api.task.onTranscript(({ id, lines }) => {
+  api.task.onTranscript(({ id, lines, sessionId }) => {
+    // A Codex session names itself once it runs: kept on the task, to resume it and read it back.
+    const task = store.task(id);
+    if (sessionId && task?.kind === 'codex' && task.sessionId !== sessionId) store.patchTask(id, { sessionId });
     const t = get(id);
-    if (!t.transcript.add(lines)) return;
+    // A resumed session's lines are only what it adds now (the daemon reads on from where it
+    // was): what it said before comes first, read once (load), then these after it.
+    if (!t.loaded && task?.kind === 'claude' && task.started) {
+      t.later = [...(t.later || []), ...(lines || [])];
+      load(task);
+      return;
+    }
+    if (!t.transcript.add(ownLines(task, lines))) return;
     t.loaded = true;
     adoptTitle(id);
     emit(id, 'change');
@@ -114,18 +142,28 @@ export function createTaskClient({ api, store }) {
 
   /* ------------------------------ actions ----------------------------- */
 
-  /** Read an earlier session's transcript once (opening an old task). */
-  async function load(task) {
+  /** Read an earlier session's transcript once (opening an old task): its recent part (the daemon reads its end). */
+  function load(task) {
     const t = get(task.id);
-    if (t.loaded || t.loading || task.kind !== 'claude' || !task.started) return;
-    t.loading = true;
-    const lines = await api.task.history(task.cwd, task.sessionId).catch(() => []);
-    t.loading = false;
-    t.loaded = true;
-    if (t.transcript.add(lines)) {
-      adoptTitle(task.id);
-      emit(task.id, 'change');
-    }
+    if (t.loading) return t.loading;
+    if (t.loaded || task.kind === 'shell' || !task.started) return Promise.resolve();
+    t.loading = (async () => {
+      const read = (sessionId) => api.task.history(task.cwd, sessionId, task.kind, task.id).catch(() => []);
+      const lines = await read(task.sessionId);
+      t.loaded = true;
+      // What the running session added while that was read: after it (lines in both are kept once).
+      const later = t.later || [];
+      t.later = null;
+      const before = t.transcript.add(ownLines(task, lines));
+      const after = t.transcript.add(ownLines(task, later));
+      if (before || after) {
+        adoptTitle(task.id);
+        emit(task.id, 'change');
+      }
+    })().finally(() => {
+      t.loading = null;
+    });
+    return t.loading;
   }
 
   /** Open the task's terminal session (resuming it when it ran before). */
@@ -140,12 +178,17 @@ export function createTaskClient({ api, store }) {
   }
 
   async function begin(task, t, prompt, size) {
+    // A branch's first start is when its copy is made: what's said from here on is its own.
+    if (task.forkOf && !task.started && !task.branchedAt) store.patchTask(task.id, { branchedAt: Date.now() });
+    t.startedAt = Date.now();
     const reply = await api.task.start({
       id: task.id,
       kind: task.kind,
       cwd: task.cwd,
       sessionId: task.sessionId,
       resume: task.started,
+      // A branch: its first start copies this session's conversation (the daemon resumes the copy after).
+      forkFrom: task.forkOf || '',
       model: task.model,
       effort: task.effort,
       // Hierarchy mode: the session is its team's leader; sub-agents: it delegates to its own.
@@ -165,21 +208,26 @@ export function createTaskClient({ api, store }) {
     return reply;
   }
 
-  /** Write to a task: starts (or resumes) its session with it, or types it in. */
-  async function send(task, text) {
+  /**
+   * Write to a task: starts (or resumes) its session with it, in `size` (its
+   * terminal's), or types it in. Never an empty start and then typing: a
+   * Claude session still starting up drops the Enter.
+   */
+  async function send(task, text, size = {}) {
     const t = get(task.id);
     const value = String(text || '').trim();
     if (!value) return null;
     if (t.starting) await t.starting; // a second Enter while the session opens: type it in once it is up
     if (!t.running) {
       // A shell takes no first message: it's typed once the shell is up.
-      const reply = await start(task, task.kind === 'shell' ? '' : value);
+      const reply = await start(task, task.kind === 'shell' ? '' : value, size);
       if (reply?.error) return reply;
       if (task.kind === 'shell') setTimeout(() => api.task.say(task.id, value), 700);
       return reply;
     }
     // Typing into a question would answer it: it waits for you in the terminal.
-    if (t.state === 'needs') return { error: t.need === 'asking' ? 'Claude asked you something first. Answer it in the terminal (Ctrl+`).' : 'Claude needs your permission first. Answer it in the terminal (Ctrl+`).' };
+    const who = task.kind === 'codex' ? 'Codex' : 'Claude';
+    if (t.state === 'needs') return { error: t.need === 'asking' ? `${who} asked you something first. Answer it in the terminal (Ctrl+\`).` : `${who} needs your permission first. Answer it in the terminal (Ctrl+\`).` };
     await api.task.say(task.id, value);
     return { sent: true };
   }

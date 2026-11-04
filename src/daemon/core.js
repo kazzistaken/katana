@@ -24,21 +24,24 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createTasks } = require('../main/tasks');
 const { createTaskStates } = require('./taskstate');
-const { resolveClaude, existsInPath } = require('../main/claude');
+const { resolveClaude, existsInPath, askQuick } = require('../main/claude');
 const { shellsFrom, pickShell } = require('../main/shells');
 const { runGuard } = require('../main/runargs');
-const { readStateFile, writeIfChanged } = require('../main/statefile');
+const { createStateReader, writeIfChanged } = require('../main/statefile');
+const { resolveCodex } = require('../main/codex');
 const { createAgent, lastAnswer } = require('./agent');
 const { createToolPort } = require('./toolport');
 const { createHeadless } = require('./headless');
 const { createNotifier } = require('./notify');
 const { createTeams, parseMember, labelOf, trustKeys, LEADER_NOTE } = require('./team');
+const { createTitler } = require('./tasktitle');
 const worktree = require('../main/worktree');
 const { plain } = require('../main/tasks');
 
 const QUIET_EVERY_MS = 1000;
 const ANSWER = /^(\r|\n|[1-9]|y|n)$/i;
 const WINDOW_CALL_MS = 5 * 60_000; // long enough for a dialog the user answers
+const CLAIM_WAIT_MS = 15_000; // a page loading waits this long at most for headless calls to finish (under the pipe's own 20 s)
 const SETTLE_MS = 1200; // a transcript's last lines land a moment after Stop
 const GROUP_MS = 4000; // done alerts this close together are one
 // Proving hierarchy mode without Claude: members run as shells (a test run only).
@@ -48,14 +51,32 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
   const hooksDir = path.join(userDataDir, 'hooks');
   const hookScript = path.join(userDataDir, 'hook.cjs');
   const hookSettings = path.join(hooksDir, 'settings.json');
-  const readState = () => readStateFile(path.join(userDataDir, 'state.json'));
+  // The saved state, parsed once per change of the file (read only: don't change what it gives).
+  const stateReader = createStateReader(path.join(userDataDir, 'state.json'));
+  const readState = () => stateReader.read();
+  // Codex picks its own session id (read off its rollout): kept here too, so a task
+  // started with no window open still resumes its session.
+  const codexFile = path.join(userDataDir, 'codex-sessions.json');
+  let codexSessions = {};
+  try {
+    codexSessions = JSON.parse(fs.readFileSync(codexFile, 'utf8')) || {};
+  } catch {
+    /* none yet */
+  }
+  function rememberCodex(id, sessionId) {
+    if (!sessionId || codexSessions[id] === sessionId) return;
+    codexSessions = { ...codexSessions, [id]: sessionId };
+    writeIfChanged(codexFile, JSON.stringify(codexSessions, null, 2));
+  }
   let shellList = null;
   const shells = () => (shellList = shellList || shellsFrom(existsInPath));
 
   // Tests hand in their own, so nothing pops up on the screen.
   const notify = notifier || createNotifier({ log });
   let windows = 0; // windows connected (katanad counts them)
-  const windowOpen = () => windows > 0;
+  // Whether the window's page can take her tool calls: null (it hasn't said), true, or false (loading, reloading, crashed).
+  let pageReady = null;
+  const windowOpen = () => windows > 0 && pageReady !== false;
   const shown = new Map(); // task id -> the state last seen
 
   const states = createTaskStates({
@@ -126,8 +147,8 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
     const task = taskById(id);
     if (!task) return;
     const settings = readState()?.settings || {};
-    if (task.kind === 'claude' && settings.wakeAgent !== false && !block) {
-      const answer = lastAnswer(task);
+    if (task.kind !== 'shell' && settings.wakeAgent !== false && !block) {
+      const answer = lastAnswer({ ...task, sessionId: task.sessionId || codexSessions[id] || '' });
       // A hierarchy task: one summary for the whole team (its leader's last words, and who did what).
       const team = task.mode === 'hierarchy' ? teams.summary(id) : [];
       const crew = team.length ? ` It ran as a team: ${team.join('; ')}.` : '';
@@ -140,6 +161,14 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
   /* ------------------------------ her tools ----------------------------- */
 
   const pending = new Map(); // a window's tool call: callId -> { resolve, timer }
+
+  function failPending(error) {
+    for (const [callId, wait] of pending) {
+      clearTimeout(wait.timer);
+      pending.delete(callId);
+      wait.resolve({ error });
+    }
+  }
 
   function callWindow(name, args) {
     return new Promise((resolve) => {
@@ -188,7 +217,17 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
    * naming them: the app viewer's tools (run its app, see it, click and type
    * in it) and, in hierarchy mode, its team tools (a leader's, a verifier's).
    */
-  async function sessionConfig(id, { viewer = true, team = false } = {}) {
+  async function sessionConfig(id, options = {}) {
+    const servers = await sessionServers(id, options);
+    const dir = path.join(userDataDir, 'viewer');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${id.replace(/[^\w-]/g, '')}.json`);
+    writeIfChanged(file, JSON.stringify({ mcpServers: servers }, null, 2));
+    return file;
+  }
+
+  /** Those servers themselves ({ name: { type, command, args, env } }): Codex takes them as session flags. */
+  async function sessionServers(id, { viewer = true, team = false } = {}) {
     const { url } = await port.start();
     writeIfChanged(mcpScript, fs.readFileSync(path.join(__dirname, '..', 'main', 'mcp-app.cjs'), 'utf8'));
     const node = existsInPath('node');
@@ -196,11 +235,7 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
     const servers = {};
     if (viewer) servers['katana-viewer'] = server({ KATANA_VIEW_TOKEN: port.viewToken(id) });
     if (team) servers['katana-team'] = server({ KATANA_TEAM_TOKEN: port.teamToken(id) });
-    const dir = path.join(userDataDir, 'viewer');
-    fs.mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, `${id.replace(/[^\w-]/g, '')}.json`);
-    writeIfChanged(file, JSON.stringify({ mcpServers: servers }, null, 2));
-    return file;
+    return servers;
   }
 
   /** The hook script and the settings that name it, kept current in userData. */
@@ -213,10 +248,20 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
     const run = [{ type: 'command', command, timeout: 10 }];
     const hooks = {};
     for (const name of ['SessionStart', 'UserPromptSubmit', 'Notification', 'Stop']) hooks[name] = [{ hooks: run }];
-    hooks.PreToolUse = [{ matcher: '*', hooks: run }];
-    hooks.PostToolUse = [{ matcher: '*', hooks: run }];
+    // Only its question tools (a question for you, the moment it's asked); every other
+    // tool, and its result, is read off the transcript (taskstate.js): no hook per tool call.
+    hooks.PreToolUse = [{ matcher: 'AskUserQuestion|ExitPlanMode', hooks: run }];
     writeIfChanged(hookSettings, JSON.stringify({ hooks }, null, 2));
   }
+
+  // Tasks name themselves as you go (not in a test run, unless its Claude is the stand-in; tests hand in a runner).
+  const canTitle = (!block && !runner) || (block && process.env.XODE2_FAKE_CLAUDE && process.env.XODE2_TEST);
+  const titler = createTitler({
+    generate: canTitle ? askQuick : null,
+    emit,
+    taskOf: (id) => (readState()?.tasks || []).find((task) => task.id === id) || null,
+    log,
+  });
 
   // What the sessions say: the window gets the screen and transcript; the
   // hooks and on-screen questions only decide the state.
@@ -225,7 +270,7 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
     settingsFile: hookSettings,
     found: () => ({
       claude: resolveClaude(),
-      codex: existsInPath('codex'),
+      codex: resolveCodex(existsInPath),
       shell: pickShell(String(readState()?.settings?.shell || ''), shells()),
     }),
     send(channel, payload) {
@@ -235,7 +280,12 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
         if (parseMember(payload.id) && /trust/i.test(payload.text)) return answerTrust(payload);
         return states.ask(payload.id, payload.text, payload.need);
       }
-      if (channel === 'task:transcript') states.transcript(payload.id, payload.lines);
+      if (channel === 'task:transcript') {
+        // A Codex session found: its id kept for resuming it (the window keeps it on the task too).
+        if (payload.sessionId) rememberCodex(payload.id, payload.sessionId);
+        states.transcript(payload.id, payload.lines);
+        if (!parseMember(payload.id)) titler.lines(payload.id, payload.lines);
+      }
       if (channel === 'task:exit') {
         emit(channel, payload);
         return states.exited(payload.id);
@@ -352,7 +402,7 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
 
   // The handlers headless.js uses: the same as a window's calls.
   const handlers = {};
-  const headless = createHeadless({ userDataDir, core: handlers, agent, notify });
+  const headless = createHeadless({ userDataDir, core: handlers, agent, notify, onWrite: () => stateReader.invalidate() });
 
   Object.assign(handlers, {
     /** Start (or resume) a task's session; only in a folder the user trusted. */
@@ -369,10 +419,14 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
       // A test run proving the team without Claude: the leader is a shell too (its team tools still served).
       const runKind = leader && TEAM_SHELL ? 'shell' : kind;
       if (leader) teams.ensure(id, { cwd: options.cwd, title: options.title || '', leader: { cwd: options.cwd, sessionId: options.sessionId, model: options.model, effort: options.effort, bypass: options.bypass } });
-      // Claude Code tasks test their app in the viewer, with its tools.
+      // Claude Code and Codex tasks test their app in the viewer, with its tools.
       const mcp = kind === 'claude' && !block ? await sessionConfig(id, { viewer: !leader, team: leader }).catch(() => '') : '';
+      const mcpServers = kind === 'codex' && !block ? await sessionServers(id, { viewer: true }).catch(() => null) : null;
+      // A Codex session's id is Codex's own, learnt once it ran: resumed by it, else started anew.
+      const codex = kind === 'codex' ? { sessionId: options.sessionId || codexSessions[id] || '' } : {};
+      if (kind === 'codex') codex.resume = Boolean(options.resume && codex.sessionId);
       const role = leader ? { role: 'leader', note: LEADER_NOTE } : { role: 'task', note: '' };
-      const reply = tasks.start({ ...options, id, kind: runKind, prompt: String(options.prompt || ''), mcpConfig: mcp, ...role });
+      const reply = tasks.start({ ...options, ...codex, id, kind: runKind, prompt: String(options.prompt || ''), mcpConfig: mcp, mcpServers, ...role });
       if (reply?.started) states.started(id, { kind: runKind, prompt: runKind === 'shell' ? '' : String(options.prompt || '') });
       return reply;
     },
@@ -401,9 +455,16 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
       return true;
     },
     tail: (id) => tasks.tail(String(id)),
+    /**
+     * A window opened a terminal on this task: what it printed so far (only
+     * what already went out); its task:data comes to that window from now on
+     * (katanad keeps who watches what), a hierarchy task's members' with it.
+     */
+    watch: (id) => tasks.tail(String(id), { sent: true }),
+    unwatch: () => true,
     running: () => tasks.running(),
     quiet: (id) => tasks.quietFor(String(id)),
-    history: (cwd, sessionId) => tasks.history(String(cwd || ''), String(sessionId || '')),
+    history: (cwd, sessionId, kind = 'claude', id = '') => tasks.history(String(cwd || ''), String(sessionId || (kind === 'codex' && codexSessions[id]) || ''), kind === 'codex' ? 'codex' : 'claude'),
     /** Every task it knows, where it stands (a window catching up). */
     snapshot,
     /** Everything ends (quitting for good). */
@@ -461,13 +522,27 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
     },
     /** How many windows are connected (katanad tells it); calls waiting on a gone one fail. */
     setWindows(count) {
-      windows = Math.max(0, count);
+      const next = Math.max(0, count);
+      // A new window: its page says when it's ready (until then, as before: it's there).
+      if (next !== windows) pageReady = null;
+      windows = next;
       if (windows) return;
-      for (const [callId, wait] of pending) {
-        clearTimeout(wait.timer);
-        pending.delete(callId);
-        wait.resolve({ error: 'The Katana window closed before it answered.' });
+      failPending('The Katana window closed before it answered.');
+    },
+    /**
+     * The window's page can take her tool calls, or can't (main says so as it
+     * loads, reloads or crashes). Not ready: calls it hadn't answered fail at
+     * once and new ones are done here, headless. Ready: it is about to read
+     * state.json, so the headless calls changing it finish first; resolves then.
+     */
+    async windowReady(ready) {
+      pageReady = Boolean(ready);
+      if (!pageReady) {
+        failPending('The Katana window reloaded before it answered. Check app_state, then try again if it’s still needed.');
+        return true;
       }
+      await Promise.race([headless.idle(), new Promise((resolve) => setTimeout(resolve, CLAIM_WAIT_MS).unref?.())]);
+      return true;
     },
     windowOpen,
     /** An alert, as the daemon would raise one (in-process tests). */

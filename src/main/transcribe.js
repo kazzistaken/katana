@@ -2,7 +2,7 @@
 
 /**
  * Dictation through OpenAI (gpt-live-transcribe), used when an OpenAI key
- * is set (Settings → Katana): steadier than Windows' speech engine. The
+ * is set (Settings → Dictation): steadier than Windows' speech engine. The
  * window records the mic and sends 24 kHz PCM16 here only while you speak
  * (its own pause detection), with a commit at each pause; this process
  * holds the key and the WebSocket. Words come back as you say them (the
@@ -111,7 +111,7 @@ function createTranscriber({ apiKey, send, log = () => {} }) {
       ws.addEventListener('message', (event) => onMessage(typeof event.data === 'string' ? event.data : Buffer.from(event.data).toString('utf8')));
       ws.addEventListener('error', () => {
         clearTimeout(timer);
-        resolve({ ok: false, error: 'Couldn’t reach OpenAI for dictation. Check the key in Settings → Katana.' });
+        resolve({ ok: false, error: 'Couldn’t reach OpenAI for dictation. Check the key in Settings → Dictation.' });
       });
       ws.addEventListener('close', (event) => {
         clearTimeout(timer);

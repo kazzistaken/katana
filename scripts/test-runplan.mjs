@@ -2,66 +2,10 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { planRun, planPage, runEnv, splitArgs, KEEP_PAINTING } = require('../src/main/runplan.js');
+const { planPage, runEnv, KEEP_PAINTING } = require('../src/main/runplan.js');
 const { descendants } = require('../src/main/win32.js');
 
 const EXE = 'C:/app/node_modules/electron/dist/electron.exe';
-
-{
-  // words, quoted parts kept together
-  assert.deepEqual(splitArgs('electron . --x "a b" \'c d\''), ['electron', '.', '--x', 'a b', 'c d']);
-  assert.deepEqual(splitArgs(''), []);
-}
-
-{
-  // `electron .` as the start script: the folder's Electron, directly, told to keep painting
-  const plan = planRun({ pkg: { scripts: { start: 'electron .' } }, electronExe: EXE });
-  assert.equal(plan.file, EXE);
-  assert.deepEqual(plan.args, [...KEEP_PAINTING, '.']);
-  assert.equal(plan.shell, false);
-  assert.ok(plan.keepsPainting);
-  assert.ok(!plan.self);
-  // npx and arguments too
-  assert.deepEqual(planRun({ pkg: { scripts: { start: 'npx electron ./app --dev' } }, electronExe: EXE }).args, [...KEEP_PAINTING, './app', '--dev']);
-}
-
-{
-  // a start script that builds first, then runs electron: npm start, with the switches passed on
-  const plan = planRun({ pkg: { scripts: { start: 'tsc && cross-env NODE_ENV=dev electron .' } }, electronExe: EXE });
-  assert.equal(plan.shell, true);
-  assert.equal(plan.file, `npm start -- ${KEEP_PAINTING.join(' ')}`);
-  assert.ok(plan.keepsPainting);
-}
-
-{
-  // any other start script runs as it is
-  const plan = planRun({ pkg: { scripts: { start: 'vite' }, devDependencies: { electron: '^38' } } });
-  assert.equal(plan.file, 'npm start');
-  assert.equal(plan.keepsPainting, false);
-  assert.ok(plan.electron);
-  // no start script, but Electron is a dependency: electron .
-  assert.deepEqual(planRun({ pkg: { devDependencies: { electron: '^38' } }, bundledElectron: EXE }).args, [...KEEP_PAINTING, '.']);
-}
-
-{
-  // what was typed wins
-  assert.deepEqual(planRun({ command: 'electron main.js', pkg: { scripts: { start: 'vite' } }, electronExe: EXE }).args, [...KEEP_PAINTING, 'main.js']);
-  const npm = planRun({ command: 'npm run dev', pkg: { scripts: { dev: 'electron .' } }, electronExe: EXE });
-  assert.equal(npm.file, `npm run dev -- ${KEEP_PAINTING.join(' ')}`);
-  const other = planRun({ command: 'python app.py', pkg: null });
-  assert.deepEqual([other.file, other.shell, other.keepsPainting], ['python app.py', true, false]);
-}
-
-{
-  // with the error hook: Electron loads it before the app (-r goes before the app's path)
-  const plan = planRun({ pkg: { scripts: { start: 'electron .' } }, electronExe: EXE, hook: 'C:/u/apphook.cjs' });
-  assert.deepEqual(plan.args, [...KEEP_PAINTING, '-r', 'C:/u/apphook.cjs', '.']);
-  assert.ok(plan.hooked);
-  // through npm it can't be placed: not hooked
-  const npm = planRun({ pkg: { scripts: { start: 'tsc && electron .' } }, electronExe: EXE, hook: 'C:/u/apphook.cjs' });
-  assert.ok(!npm.hooked);
-  assert.ok(!npm.file.includes('apphook'));
-}
 
 {
   // a web page: this program again, as a small browser
@@ -73,17 +17,7 @@ const EXE = 'C:/app/node_modules/electron/dist/electron.exe';
 }
 
 {
-  // what can't run says why
-  assert.match(planRun({}).error, /package\.json/);
-  assert.match(planRun({ pkg: { name: 'x' } }).error, /start script/);
-  assert.match(planRun({ pkg: { scripts: { start: 'electron .' } } }).error, /npm install/);
-}
-
-{
-  // this app in itself is marked, so it gets its own data folder
-  assert.ok(planRun({ pkg: { name: 'katana', scripts: { start: 'electron .' } }, electronExe: EXE }).self);
-  // under its old name too (an older copy of it)
-  assert.ok(planRun({ pkg: { name: 'xodecode-v2', scripts: { start: 'electron .' } }, electronExe: EXE }).self);
+  // what a page's browser starts with: none of this app's own switches, and its own data folder
   const env = runEnv({ PATH: 'p', ELECTRON_RUN_AS_NODE: '1', XODE2_TEST: 'look', XODE2_USERDATA: 'C:/real' }, { self: true, dataDir: 'C:/tmp/run' });
   assert.deepEqual(env, { PATH: 'p', XODE2_USERDATA: 'C:/tmp/run' });
   // anything else keeps no XODE2_ settings at all

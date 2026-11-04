@@ -1,2 +1,5 @@
 node_modules/
 out/
+
+# Local speech model: its Python environment and weights (several GB)
+.canary/

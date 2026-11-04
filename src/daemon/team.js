@@ -86,6 +86,8 @@ function overlapping(mine, theirs) {
 
 /* ------------------------------ trust prompt ----------------------------- */
 
+// (Its wording on screen: screens.js.)
+const { TRUST_QUESTION, TRUST_POINTER, TRUST_YES_BELOW } = require('../main/screens');
 const DOWN = String.fromCharCode(27) + '[B';
 const ENTER = String.fromCharCode(13);
 
@@ -97,15 +99,15 @@ const ENTER = String.fromCharCode(13);
  */
 function trustKeys(screen) {
   const text = String(screen || '');
-  const at = text.search(/trust (this|the files in this) folder|one you trust|trust this project/i);
+  const at = text.search(TRUST_QUESTION);
   if (at < 0) return null;
   const rest = text.slice(at);
-  const pointers = [...rest.matchAll(/[❯›>]\s*(?:\d+\.\s*)?(Yes|No)\b/gi)];
+  const pointers = [...rest.matchAll(TRUST_POINTER)];
   const last = pointers.at(-1);
   if (!last) return null;
   if (last[1].toLowerCase() === 'yes') return [ENTER];
   // On "No": yes is the next choice down (when there is one).
-  return /\n[^\S\n]*(?:\d+\.\s*)?Yes\b/i.test(rest.slice(last.index)) ? [DOWN, ENTER] : null;
+  return TRUST_YES_BELOW.test(rest.slice(last.index)) ? [DOWN, ENTER] : null;
 }
 
 /* -------------------------------- tools -------------------------------- */
@@ -138,7 +140,7 @@ const TEAM_TOOLS = [
   ),
   tool(
     'team_verify',
-    'Have a verifier check a finished worker’s work before you accept it: it reviews the diff, runs the tests and tries the app in the app viewer, then gives pass or fail with specifics (team_collect brings it).',
+    'Have a verifier check a finished worker’s work before you accept it: it reviews the diff, runs the tests and tries web pages in the browser, then gives pass or fail with specifics (team_collect brings it).',
     { worker: workerArg, verifier: { type: 'string', description: '"Verifier 1" or "Verifier 2"; default: a free one.' }, focus: { type: 'string', description: 'Anything in particular to check (optional).' } },
     ['worker']
   ),
@@ -175,7 +177,7 @@ const LEADER_NOTE = `You are the Leader of a team in Katana (the app running you
 
 Your team (the mcp__katana-team tools):
 - Workers 1-4: each a full Claude Code session working on its own git branch and worktree (outside git: on the files it claims). Give each a clear subtask with team_assign.
-- Verifiers 1-2: check a worker's finished work (review its diff, run the tests, try the app in the app viewer) and give a pass or fail with specifics.
+- Verifiers 1-2: check a worker's finished work (review its diff, run the tests, try web pages in the browser) and give a pass or fail with specifics.
 
 How to work:
 1. Read enough of the code (Read, Grep, Glob) to plan. Small, single-file work can still go to one worker.
@@ -213,7 +215,7 @@ function verifierBrief({ key, worker, focus, shared }) {
     'Check it:',
     `1. ${diff} Is it correct, complete, and limited to its files?`,
     '2. Run the project’s tests (and its build or lint, if it has them).',
-    '3. If it has a UI, run it in the app viewer (run_app, app_screenshot, app_click, app_type) and try the change; stop_app when done (the other verifier may need the viewer).',
+    '3. If it’s a web page, open it in the browser (run_app with its page, app_screenshot, app_click, app_type) and try the change; stop_app when done (the other verifier may need the browser). Anything else with a UI: run it from the shell.',
     'Don’t fix anything yourself. Then call team_verdict: pass true or false, with specifics (what is wrong, where as file:line, how to reproduce, what to fix). If you can’t call it, end with VERDICT: PASS or VERDICT: FAIL and your reasons.',
   ]
     .filter(Boolean)

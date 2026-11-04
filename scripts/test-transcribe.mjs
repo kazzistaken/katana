@@ -7,29 +7,121 @@ import { createPauseDetector, wav } from '../src/renderer/js/mic.js';
 const require = createRequire(import.meta.url);
 
 /* ------------------- speech or not, chunk by chunk ------------------- */
+// Noises and a voice, made up: the seed keeps them the same each run.
+let seed = 7;
+const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32) * 2 - 1;
+const noise = (level) => Float32Array.from({ length: 2048 }, () => random() * level);
+let phase = 0;
+let voiceAt = 0;
+/** A voice: harmonics of a pitch that keeps moving, as a person's does. */
+function voice(level = 0.2) {
+  voiceAt += 1;
+  const hz = 130 + 25 * Math.sin(voiceAt * 0.9);
+  return Float32Array.from({ length: 2048 }, () => {
+    phase += (2 * Math.PI * hz) / 24000;
+    return level * (Math.sin(phase) + 0.5 * Math.sin(2 * phase) + 0.25 * Math.sin(3 * phase)) * (0.7 + 0.3 * Math.sin(voiceAt));
+  });
+}
+function gateFor() {
+  const seen = { sent: [], commits: 0 };
+  seen.gate = createPauseDetector({ send: (chunk) => seen.sent.push(chunk), commit: () => (seen.commits += 1), chunkMs: 85 });
+  return seen;
+}
+const during = (gate, count, make) => {
+  for (let i = 0; i < count; i += 1) gate.push(make(i));
+};
+
 {
-  const sent = [];
-  let commits = 0;
-  const gate = createPauseDetector({ send: (chunk) => sent.push(chunk), commit: () => (commits += 1), chunkMs: 85 });
-  const chunk = (level) => new Float32Array(2048).fill(level);
+  const seen = gateFor();
+  const { gate, sent } = seen;
   // The room's own noise: nothing sent.
-  for (let i = 0; i < 20; i += 1) gate.push(chunk(0.003));
+  during(gate, 20, () => noise(0.003));
   assert.equal(sent.length, 0);
-  // Speech: the moment before it goes too (so no first word is cut), then each chunk.
-  gate.push(chunk(0.2));
-  assert.equal(sent.length, 5, 'four lead-in chunks and the first loud one');
-  gate.push(chunk(0.2));
-  assert.equal(sent.length, 6);
-  // A short breath isn't a pause; 700 ms of quiet is.
-  for (let i = 0; i < 4; i += 1) gate.push(chunk(0.003));
-  assert.equal(commits, 0);
-  for (let i = 0; i < 6; i += 1) gate.push(chunk(0.003));
-  assert.equal(commits, 1);
+  // A voice has to last before it counts; then the moment before it goes too (so no first word is cut), then each chunk.
+  during(gate, 2, () => voice());
+  assert.equal(sent.length, 0);
+  gate.push(voice());
+  assert.equal(sent.length, 9, 'the lead-in and the voice so far');
+  gate.push(voice());
+  assert.equal(sent.length, 10);
+  // A short breath isn't a pause; about 950 ms without a voice is.
+  during(gate, 10, () => noise(0.003));
+  assert.equal(seen.commits, 0);
+  during(gate, 2, () => noise(0.003));
+  assert.equal(seen.commits, 1);
   assert.equal(gate.speaking(), false);
-  // Stopping mid-phrase sends what was said.
-  gate.push(chunk(0.2));
+  // Stopping mid-phrase sends what was said; stopping with nothing said sends nothing.
+  during(gate, 3, () => voice());
   gate.end();
-  assert.equal(commits, 2);
+  assert.equal(seen.commits, 2);
+  gate.end();
+  assert.equal(seen.commits, 2);
+}
+
+/* Things that aren't you talking: nothing sent, however loud. */
+{
+  const click = () => {
+    const chunk = noise(0.003);
+    for (let i = 0; i < 300; i += 1) chunk[500 + i] += random() * 0.4 * Math.exp(-i / 50);
+    return chunk;
+  };
+  const thump = () => Float32Array.from({ length: 2048 }, (_, i) => 0.4 * Math.sin((2 * Math.PI * 45 * i) / 24000) * Math.exp(-i / 800));
+  let was = 0;
+  const fan = () =>
+    Float32Array.from({ length: 2048 }, () => {
+      was = was * 0.9 + random() * 0.1;
+      return was * 0.25;
+    });
+  let hummed = 0;
+  const hum = () =>
+    Float32Array.from({ length: 2048 }, () => {
+      hummed += 1;
+      return 0.05 * (Math.sin((2 * Math.PI * 120 * hummed) / 24000) + 0.5 * Math.sin((2 * Math.PI * 240 * hummed) / 24000));
+    });
+  for (const [name, make] of [
+    ['typing', click],
+    ['a desk being bumped', thump],
+    ['a fan coming on', fan],
+    ['a hum coming on', hum],
+    ['breath', () => noise(0.15)],
+  ]) {
+    const seen = gateFor();
+    during(seen.gate, 12, () => noise(0.003));
+    during(seen.gate, 120, make);
+    seen.gate.end();
+    assert.equal(seen.sent.length, 0, name);
+    assert.equal(seen.commits, 0, name);
+  }
+}
+
+/* A burst of noise isn't a phrase. A voice after a fan comes on still is. */
+{
+  const seen = gateFor();
+  during(seen.gate, 10, () => noise(0.003));
+  during(seen.gate, 2, () => noise(0.5));
+  during(seen.gate, 20, () => noise(0.003));
+  assert.equal(seen.sent.length, 0);
+  during(seen.gate, 50, () => noise(0.03));
+  assert.equal(seen.sent.length, 0);
+  during(seen.gate, 6, () => voice());
+  assert.ok(seen.sent.length > 0, 'a voice over the fan');
+}
+
+/* Noise after you've stopped talking doesn't hold the phrase open. */
+{
+  const seen = gateFor();
+  during(seen.gate, 10, () => noise(0.003));
+  during(seen.gate, 12, () => voice());
+  assert.equal(seen.gate.speaking(), true);
+  during(seen.gate, 12, () => noise(0.2));
+  assert.equal(seen.commits, 1);
+}
+
+/* Spoken the moment the mic opens: the first words aren't lost learning the room. */
+{
+  const seen = gateFor();
+  during(seen.gate, 3, () => voice());
+  assert.equal(seen.sent.length, 3);
 }
 
 /* --------------- the line to OpenAI, against a stand-in --------------- */

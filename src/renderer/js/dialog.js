@@ -1,4 +1,4 @@
-import { $, el } from './util.js';
+import { $, el, motionOn } from './util.js';
 
 /**
  * Small modal dialogs in #overlay: confirm, rename, choose. Each returns a
@@ -7,17 +7,38 @@ import { $, el } from './util.js';
 
 // The dialog on screen, so a second one cancels it instead of stacking its key handler over it.
 let dismissOpen = null;
+let leaving = 0;
 
 function open(card, onCancel) {
   dismissOpen?.();
   const overlay = $('#overlay');
   const previous = document.activeElement;
+  clearTimeout(leaving);
+  overlay.classList.remove('is-leaving');
   overlay.replaceChildren(card);
   overlay.hidden = false;
   const close = () => {
     if (dismissOpen === cancel) dismissOpen = null;
-    overlay.hidden = true;
-    overlay.replaceChildren();
+    const finish = () => {
+      overlay.classList.remove('is-leaving');
+      overlay.hidden = true;
+      overlay.replaceChildren();
+    };
+    if (motionOn()) {
+      // It fades before it goes; a dialog opening meanwhile takes over (see above).
+      // Closed while still opening: it leaves from where it had got to.
+      const { opacity, transform } = getComputedStyle(card);
+      for (const animation of card.getAnimations()) animation.cancel();
+      card.style.transition = 'none';
+      card.style.opacity = opacity;
+      card.style.transform = transform;
+      void card.offsetWidth;
+      card.removeAttribute('style');
+      card.classList.add('is-leaving');
+      overlay.classList.add('is-leaving');
+      clearTimeout(leaving);
+      leaving = setTimeout(finish, 300);
+    } else finish();
     document.removeEventListener('keydown', onKey, true);
     previous?.focus?.();
   };
@@ -56,7 +77,8 @@ export function confirmDialog({ title, body, ok = 'OK', cancel = 'Cancel', dange
       { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dialog-title' },
       el('h2', { class: 'dialog-title', id: 'dialog-title', text: title }),
       body ? el('p', { class: 'dialog-body', text: body }) : null,
-      el('div', { class: 'dialog-actions' }, el('button', { class: 'btn', type: 'button', text: cancel, onclick: () => done(false) }), okButton)
+      // (cancel: null — just the one button, for a note.)
+      el('div', { class: 'dialog-actions' }, cancel ? el('button', { class: 'btn', type: 'button', text: cancel, onclick: () => done(false) }) : null, okButton)
     );
     close = open(card, () => resolve(false));
     okButton.focus();

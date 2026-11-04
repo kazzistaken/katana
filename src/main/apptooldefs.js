@@ -26,8 +26,8 @@ const point = { x: { type: 'number', description: 'Across, in the last app_scree
 const APP_TOOLS = [
   tool(
     'run_app',
-    'Run the app in a task’s folder (an Electron app, or Katana itself), or show a web page (an HTML file, a browser game), live in the app viewer, where it can be tested with app_screenshot, app_click, app_type and app_key. With no command or page, package.json’s start script (or electron .) decides. Running again keeps the one already running. Test here, never in a separate window.',
-    { task: onTask, command: str('What to run instead, e.g. “npm run dev” or “electron main.js” (optional).'), page: str('An HTML file’s full path, to show that page instead (optional).') }
+    'Show a web page (an HTML file, a browser game) live in the browser beside a task, where it can be tested with app_screenshot, app_click, app_type and app_key. A page already showing goes to this one. It only shows web pages: run anything else yourself from the shell.',
+    { task: onTask, page: str('The HTML file’s full path.') }
   ),
   tool('stop_app', 'Stop what runs in a task’s app viewer (its windows close, then whatever is left is ended).', { task: onTask }),
   tool(
@@ -85,14 +85,14 @@ const TOOLS = [
       prompt: str('What to do, standing on its own. For a shell: the command to run.'),
       title: str('3-6 words.'),
       agent: { type: 'string', enum: ['claude', 'codex', 'shell'] },
-      model: { type: 'string', enum: ['opus', 'sonnet', 'haiku'] },
+      model: str('Claude: opus, sonnet or haiku. Codex: one of its models (codexModel in app_state’s settings is the default; gpt-6-luna, gpt-5.6-terra, gpt-5.6-luna). Leave it out for the default.'),
       effort: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] },
       worktree: { type: 'boolean', description: 'Its own git worktree and branch (when two tasks share a folder).' },
       mode: {
         type: 'string',
         enum: ['single', 'subagents', 'hierarchy'],
         description:
-          'How it runs (default single: one session). subagents: one session (Sonnet unless a model is given) that hands pieces to sub-agents on the model that fits: Sonnet for most work, Opus for hard problems, Haiku for tiny fixes; good for mixed work at lower cost. hierarchy: a team, a Leader that splits the work across up to 4 workers on their own branches and has 2 verifiers check it before merging; for big work with separable parts.',
+          'How it runs (default single: one session). subagents: an Opus session leads (plans, checks the work; model is ignored) and picks a sub-agent per piece: Haiku for simple fixes, Sonnet for hard work and logic, Opus for complicated systems and hard bugs; good for mixed work. hierarchy: a team, a Leader that splits the work across up to 4 workers on their own branches and has 2 verifiers check it before merging; for big work with separable parts.',
       },
       hierarchy: { type: 'boolean', description: 'Same as mode "hierarchy" (kept for older calls).' },
       open: { type: 'boolean', description: 'Show it on screen (default false).' },
@@ -121,8 +121,8 @@ const TOOLS = [
     {
       view: {
         type: 'string',
-        enum: ['task', 'terminal', 'file', 'new_task', 'katana', 'katana_conversation', 'settings', 'close_settings'],
-        description: 'task, terminal, file: a task (give its id) as its conversation, its terminal or its open file. katana: your face; katana_conversation: your conversation as text.',
+        enum: ['task', 'terminal', 'file', 'new_task', 'katana', 'settings', 'close_settings'],
+        description: 'task, terminal, file: a task (give its id) as its conversation, its terminal or its open file. katana: your conversation.',
       },
       task,
     },
@@ -130,7 +130,7 @@ const TOOLS = [
   ),
   tool(
     'set_setting',
-    'Change one setting (the keys and current values are in app_state.settings). Themes: system, graphite, black, tokyo-night, catppuccin, rose-pine, nord, light. textSize: default, larger. motion: full, reduced, off. Models: opus, sonnet, haiku. Efforts: low, medium, high, xhigh, max.',
+    'Change one setting (the keys and current values are in app_state.settings). Themes (each a live black-and-white scene behind the chat): night-lake (a moonlit mountain lake), rooftop-rain (a city rooftop at night in the rain). noBackground: true (a flat colour window, no scene or picture; the theme is kept) or false (the theme again); setting a theme turns it off. noBackgroundColor (the colour while noBackground is on): graphite, blue, purple, pink, red, orange, yellow, green. darkMode: true (dark grey panels and controls) or false (white glass). textSize: default, larger. Models: opus, sonnet, haiku. Efforts: low, medium, high, xhigh, max.',
     { key: str('The setting’s key.'), value: { description: 'Its new value: true/false, a number or a string.' } },
     ['key', 'value']
   ),
@@ -167,7 +167,6 @@ const TOOLS = [
   ),
   ...APP_TOOLS,
   tool('notice', 'Show a short notice above the prompt bar (and a Windows notification when the user is in another app).', { text: str('A sentence.') }, ['text']),
-  tool('end_voice', 'Hang up the live voice conversation (when the user says goodbye or asks you to stop listening).'),
 ];
 
 module.exports = { TOOLS, VIEW_TOOLS };

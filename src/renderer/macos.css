@@ -1,0 +1,2751 @@
+/*
+ * Katana's look: the proportions and restraint of macOS 27, in its own voice,
+ * over styles.css. Its numbers come from .claude/skills/macos-design/SKILL.md.
+ * Dark mode (Settings > Look, body[data-dark]) is at the end of this file.
+ *
+ * Katana's own: the live scenes, frosted white glass for what's selected, code
+ * and terminals in Geist Mono, the shining dot. Nothing is tinted black: every
+ * surface (fields, bubbles, code, menus) is a white tint, blurring what's behind
+ * it where it can, and words stand on a little shadow.
+ */
+
+body[data-style="macos"] {
+  /*
+   * The Mac's own font on a Mac (it's built in). Apple licenses SF Pro for Apple
+   * platforms only, so it isn't shipped: elsewhere, Inter (OFL), the closest open
+   * match, with optical sizes as SF has.
+   */
+  --sans: -apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI", system-ui, sans-serif;
+  font-optical-sizing: auto;
+  /*
+   * Every white tint is one of three: 5% quiet surfaces (panels, cards, a row
+   * under the pointer), 7% controls at rest and what floats over the words in a
+   * chat, 10% what's chosen, or a control under the pointer. Settings, menus and
+   * dialogs are the exception: stronger, at the end of this file.
+   */
+  --mac-5: rgba(255, 255, 255, 0.05);
+  --mac-7: rgba(255, 255, 255, 0.07);
+  --mac-10: rgba(255, 255, 255, 0.1);
+  /* Selected: clear, blurring what's behind, a little white. */
+  --mac-select: var(--mac-10);
+  --mac-on-select: #ffffff;
+  --mac-fill: var(--mac-5);
+  --mac-fill-strong: var(--mac-10);
+  --mac-hairline: var(--mac-10);
+  --mac-card: var(--mac-5);
+  --mac-glass: var(--mac-7);
+  --mac-glass-filter: blur(24px) saturate(160%);
+  --mac-glass-edge: inset 0 0.5px 0 var(--mac-10), 0 0 0 0.5px var(--mac-10);
+  --mac-ring: 0 0 0 2px rgba(255, 255, 255, 0.55);
+  --r-panel: 16px;
+  --r: 7px;
+  --r-sm: 5px;
+  /* Secondary words, light enough to read on the scenes (4.5:1 over #262626). */
+  --muted: #a4a8ac;
+  --faint: #83878b;
+  --body: #dfe2e4;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-variant-ligatures: normal;
+}
+
+body[data-style="macos"][data-scene] .shell {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* The surfaces styles.css smokes over a scene: white instead. */
+body[data-style="macos"][data-scene],
+body[data-style="macos"][data-scene] :is(.chat, .terminal, .settings-page, .sidebar) {
+  --panel: var(--mac-5);
+  --raised: var(--mac-7);
+  --row: var(--mac-5);
+  --field: var(--mac-7);
+  --band: var(--mac-10);
+  --hover: var(--mac-5);
+}
+
+/* (The rail keeps its own width.) */
+body[data-style="macos"]:not([data-rail]) {
+  --side: 224px;
+}
+
+/* -------------------------------- window ------------------------------- */
+
+/* The sidebar and the chat are always two panels, clear of the window's edge and of each other. */
+body[data-style="macos"] .shell {
+  gap: 7px;
+  padding: 6px;
+}
+
+body[data-style="macos"] .panel {
+  border: 1px solid var(--mac-hairline);
+  border-radius: var(--r-panel);
+}
+
+/* Over a scene, a slight white tint inside the panels; the strip around them is the picture itself. */
+body[data-style="macos"][data-scene] .panel {
+  background: var(--mac-5);
+}
+
+/* Collapsed (Ctrl+B): every row is the same short pill. */
+body[data-style="macos"][data-rail] {
+  --side: 68px;
+}
+
+body[data-style="macos"][data-rail] .side-list {
+  gap: 4px;
+  padding: 8px 0 8px;
+}
+
+body[data-style="macos"][data-rail] .side-task,
+body[data-style="macos"][data-rail] .side-task.has-sub {
+  flex: none;
+  width: 44px;
+  height: 34px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+body[data-style="macos"][data-rail] .side-agent {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 8px;
+  padding: 0;
+}
+
+/* -------------------------------- lights ------------------------------- */
+
+/* Their centres: 23 apart, 26 from the panel's top and left. */
+body[data-style="macos"] .side-head {
+  height: 52px;
+  padding: 0 14px 0 18px;
+}
+
+body[data-style="macos"] .lights {
+  gap: 9px;
+}
+
+body[data-style="macos"] .light {
+  width: 14px;
+  height: 14px;
+}
+
+body[data-style="macos"] .light svg {
+  width: 9px;
+  height: 9px;
+}
+
+body[data-style="macos"] .side-new {
+  font-size: 12px;
+}
+
+/* ------------------------------- sidebar ------------------------------- */
+
+body[data-style="macos"] .side-agent {
+  height: 44px;
+  margin: 0 10px 8px;
+  padding: 0 9px;
+  border: 0;
+}
+
+body[data-style="macos"] .avatar {
+  width: 30px;
+  height: 30px;
+}
+
+body[data-style="macos"] .side-agent-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+body[data-style="macos"] .side-agent-count {
+  font-size: 11px;
+}
+
+/* In line with the rows' pills, 8px clear of Katana and of the first row (the list's padding). Over the gliding pill. */
+body[data-style="macos"] .side-rule {
+  position: relative;
+  z-index: 1;
+  margin: 0 10px;
+}
+
+body[data-style="macos"] .side-list {
+  gap: 0;
+  padding: 8px 10px 8px;
+}
+
+body[data-style="macos"] .side-task {
+  height: 32px;
+  gap: 10px;
+  padding: 0 9px;
+  border: 0;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+body[data-style="macos"] .side-task.has-sub {
+  height: 44px;
+}
+
+body[data-style="macos"] .side-task-sub {
+  margin-top: 1px;
+  font-size: 11px;
+}
+
+body[data-style="macos"] .side-task:hover,
+body[data-style="macos"] .side-agent:hover {
+  background: var(--mac-fill);
+}
+
+/* Selected: frosted glass. In a window that isn't in front, fainter. */
+body[data-style="macos"] .side-task.is-active,
+body[data-style="macos"] .side-agent.is-active {
+  border: 0;
+  background: var(--mac-select);
+  box-shadow: var(--mac-glass-edge);
+  backdrop-filter: var(--mac-glass-filter);
+  color: var(--mac-on-select);
+}
+
+body[data-style="macos"] .side-task.is-active .side-task-sub,
+body[data-style="macos"] .side-agent.is-active .side-agent-count {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+body[data-style="macos"][data-blurred] .side-task.is-active,
+body[data-style="macos"][data-blurred] .side-agent.is-active {
+  background: var(--mac-fill);
+}
+
+/* ------------------------------- toolbar ------------------------------- */
+
+body[data-style="macos"] .topbar {
+  height: 52px;
+  padding: 0 12px 0 20px;
+}
+
+body[data-style="macos"] .top-label {
+  font-size: 13px;
+}
+
+body[data-style="macos"] .top-link {
+  font-size: 12px;
+}
+
+body[data-style="macos"] .top-actions .icon {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+}
+
+body[data-style="macos"] .top-actions .icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+body[data-style="macos"] .icon:hover {
+  background: var(--mac-fill);
+}
+
+body[data-style="macos"] .top-actions .icon.is-active,
+body[data-style="macos"] .top-actions .icon[aria-pressed="true"] {
+  background: var(--mac-fill-strong);
+  border-color: transparent;
+}
+
+/* --------------------------------- chat -------------------------------- */
+
+body[data-style="macos"] .ex-user {
+  padding: 7px 13px;
+  border-radius: 16px 16px 5px 16px;
+  background: var(--mac-glass);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* (Where the status line was, now the answer starts with its headline.) */
+body[data-style="macos"] .ex > .ex-head {
+  margin-top: 23px;
+}
+
+body[data-style="macos"] .ex-head {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+body[data-style="macos"] .ex-body {
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+body[data-style="macos"] .md-pre,
+body[data-style="macos"] .md-table {
+  border-radius: 10px;
+  background: var(--mac-fill);
+  font-family: var(--mono);
+}
+
+body[data-style="macos"] .md-code {
+  border-radius: var(--r-sm);
+  font-family: var(--mono);
+  background: var(--mac-fill-strong);
+}
+
+/* The prompt bar: a soft field, with what's behind it blurred. */
+body[data-style="macos"] .composer {
+  min-height: 44px;
+  padding: 12px 13px 12px 16px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--mac-glass);
+  box-shadow: var(--mac-glass-edge);
+  backdrop-filter: var(--mac-glass-filter);
+}
+
+body[data-style="macos"] .composer-input {
+  height: 20px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* -------------------------------- buttons ------------------------------ */
+
+body[data-style="macos"] .key-btn,
+body[data-style="macos"] .btn {
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--mac-glass);
+  box-shadow: var(--mac-glass-edge);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+body[data-style="macos"] .key-btn:hover,
+body[data-style="macos"] .btn:hover {
+  background: var(--mac-10);
+}
+
+body[data-style="macos"] .btn-primary {
+  background: var(--mac-10);
+  color: var(--mac-on-select);
+}
+
+body[data-style="macos"] .btn-primary:hover {
+  background: var(--mac-10);
+}
+
+body[data-style="macos"] .text-btn {
+  font-size: 13px;
+}
+
+/* -------------------------------- fields ------------------------------- */
+
+body[data-style="macos"] .text-field,
+body[data-style="macos"] .dialog-input {
+  height: 28px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--r);
+  background: var(--mac-glass);
+  box-shadow: var(--mac-glass-edge);
+  font-size: 13px;
+}
+
+body[data-style="macos"] .text-field:focus,
+body[data-style="macos"] .dialog-input:focus {
+  box-shadow: var(--mac-glass-edge), var(--mac-ring);
+}
+
+body[data-style="macos"] .toggle {
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--mac-5);
+}
+
+body[data-style="macos"] .toggle::after {
+  width: 14px;
+  height: 14px;
+  background: var(--muted);
+}
+
+body[data-style="macos"] .toggle[aria-checked="true"] {
+  background: var(--mac-10);
+  backdrop-filter: var(--mac-glass-filter);
+}
+
+body[data-style="macos"] .toggle[aria-checked="true"]::after {
+  transform: translateX(14px);
+  background: #fff;
+}
+
+body[data-style="macos"] .chip-opt {
+  height: 28px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--mac-card);
+  box-shadow: inset 0 0 0 0.5px var(--mac-hairline);
+  font-size: 13px;
+}
+
+body[data-style="macos"] .chip-opt[aria-pressed="true"] {
+  background: var(--mac-select);
+  box-shadow: var(--mac-glass-edge);
+  backdrop-filter: var(--mac-glass-filter);
+  color: var(--mac-on-select);
+  font-weight: 500;
+}
+
+/* A picture tile: rounder, the choice ringed in white. */
+body[data-style="macos"] .chip-opt.has-preview {
+  height: auto;
+  padding: 6px 6px 8px;
+  border-radius: 12px;
+}
+
+body[data-style="macos"] .chip-opt.has-preview .theme-preview {
+  border-radius: 7px;
+}
+
+body[data-style="macos"] .chip-opt.has-preview[aria-pressed="true"] {
+  background: var(--mac-card);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+  backdrop-filter: none;
+  color: var(--text);
+}
+
+body[data-style="macos"] .chip-opt.has-preview span.theme-add {
+  border-radius: 7px;
+}
+
+/* ------------------------------- settings ------------------------------ */
+
+/* Grouped, as System Settings: each group's settings in a rounded card, a hairline between them. */
+body[data-style="macos"] .set-nav-item {
+  height: 32px;
+  padding: 0 11px;
+  border-radius: var(--r);
+  font-size: 13px;
+}
+
+body[data-style="macos"] .set-nav-item:hover {
+  background: var(--mac-fill);
+}
+
+body[data-style="macos"] .set-nav-item[aria-current="true"] {
+  background: var(--mac-fill-strong);
+  color: var(--text);
+}
+
+body[data-style="macos"] .set-group-label {
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+body[data-style="macos"] .set-fields {
+  gap: 0;
+  padding: 2px 16px;
+  border-radius: 10px;
+  background: var(--mac-card);
+  box-shadow: inset 0 0 0 0.5px var(--mac-hairline);
+}
+
+body[data-style="macos"] .set-field {
+  padding: 12px 0;
+  align-items: center;
+}
+
+body[data-style="macos"] .set-field.is-stacked {
+  align-items: stretch;
+}
+
+body[data-style="macos"] .set-field + .set-field {
+  border-top: 0.5px solid var(--mac-hairline);
+}
+
+body[data-style="macos"] .set-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+body[data-style="macos"] .set-help {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ------------------------- menus, dialogs, panes ------------------------ */
+
+body[data-style="macos"] .pop {
+  padding: 5px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--mac-10);
+  box-shadow: var(--mac-glass-edge);
+  backdrop-filter: blur(36px) saturate(170%);
+}
+
+/* Holds words, not menu rows: without this the 5px above wins over .context-pop's own padding. */
+body[data-style="macos"] .pop.context-pop {
+  padding: 12px 14px 14px;
+}
+
+body[data-style="macos"] .menu-item {
+  padding: 5px 9px;
+  border-radius: var(--r);
+  font-size: 13px;
+}
+
+body[data-style="macos"] .menu-item:hover {
+  background: var(--mac-select);
+  color: var(--mac-on-select);
+}
+
+/* What a dialog dims: a white veil, frosted. */
+body[data-style="macos"] .overlay {
+  background: var(--mac-7);
+  backdrop-filter: blur(8px);
+}
+
+body[data-style="macos"] .bg-drop {
+  background: var(--mac-10);
+  backdrop-filter: var(--mac-glass-filter);
+}
+
+body[data-style="macos"] .chip-remove {
+  background: var(--mac-10);
+  backdrop-filter: var(--mac-glass-filter);
+}
+
+body[data-style="macos"] .chip-remove:hover {
+  background: var(--mac-10);
+}
+
+/* A bar you read, not a control: no tint of its own, a hairline under it. */
+body[data-style="macos"] .term-head {
+  background: transparent;
+}
+
+body[data-style="macos"] .dialog {
+  padding: 20px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--mac-10);
+  box-shadow: var(--mac-glass-edge);
+  backdrop-filter: blur(36px) saturate(170%);
+}
+
+body[data-style="macos"] .dialog-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+body[data-style="macos"] .dialog-body {
+  font-size: 13px;
+}
+
+/* The terminal stays in mono, in a rounded frame. */
+body[data-style="macos"] .term-frame {
+  border-radius: 12px;
+}
+
+body[data-style="macos"] .term-head {
+  font-size: 12px;
+}
+
+/* A thin scrollbar that's only there while you're on it. */
+body[data-style="macos"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+body[data-style="macos"] ::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 5px;
+  background: var(--mac-10) padding-box;
+}
+
+body[data-style="macos"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* A dangerous choice, still readable on the lighter glass. */
+body[data-style="macos"] .menu-item.is-danger,
+body[data-style="macos"] .text-btn.is-danger {
+  color: #ffb4ab;
+}
+
+/* ---------------------------- no dark outlines --------------------------- */
+
+/* Every border and shadow styles.css draws from these: white hairlines, no shadow. */
+body[data-style="macos"] {
+  --line: var(--mac-10);
+  --line-mid: var(--mac-10);
+  --line-strong: var(--mac-10);
+  --edge: rgba(255, 255, 255, 0.55);
+  --shadow: transparent;
+  /* (The old red, on the browser's and a team's live dots.) */
+  --crimson: #ffffff;
+}
+
+body[data-style="macos"] .light {
+  box-shadow: none;
+}
+
+body[data-style="macos"] .term-frame {
+  box-shadow: none;
+}
+
+/* ---------------------------- files in the chat --------------------------- */
+
+body[data-style="macos"] .file-chip {
+  height: 32px;
+  padding: 0 6px 0 14px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--mac-glass);
+  box-shadow: var(--mac-glass-edge);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+body[data-style="macos"] .file-chip:hover {
+  background: var(--mac-10);
+}
+
+body[data-style="macos"] .file-chip.is-open {
+  background: var(--mac-10);
+}
+
+body[data-style="macos"] .file-chip-save {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+/* A document or page opened: nothing behind it but the scene. */
+body[data-style="macos"] .viewer,
+body[data-style="macos"] .viewer.is-app,
+body[data-style="macos"] .doc {
+  border: 0;
+  background: transparent;
+}
+
+body[data-style="macos"] .doc-bar {
+  height: 44px;
+  border-bottom: 0.5px solid var(--mac-hairline);
+  font-size: 12px;
+}
+
+body[data-style="macos"] .doc-body {
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+body[data-style="macos"] .doc-action,
+body[data-style="macos"] .doc-close,
+body[data-style="macos"] .file-chip-save:hover {
+  border-radius: 14px;
+}
+
+/* The browser's bar. */
+body[data-style="macos"] .app-dock {
+  height: 44px;
+  padding: 0 10px;
+  border-bottom: 0.5px solid var(--mac-hairline);
+  background: transparent;
+  font-size: 12px;
+}
+
+body[data-style="macos"] .app-back {
+  height: 28px;
+  padding: 0 12px 0 8px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--mac-glass);
+  box-shadow: var(--mac-glass-edge);
+  font-weight: 500;
+}
+
+body[data-style="macos"] .app-dock-btn,
+body[data-style="macos"] .app-tab {
+  height: 28px;
+  border-radius: 14px;
+}
+
+body[data-style="macos"] .app-dock-btn {
+  width: 28px;
+}
+
+/* ------------------------------- older marks ------------------------------ */
+
+/* The prompt's and the folder's little terminal arrows. */
+body[data-style="macos"] .composer-caret,
+body[data-style="macos"] .foot-project > span {
+  display: none;
+}
+
+/* Links read as words, not underlines. */
+body[data-style="macos"] .text-btn,
+body[data-style="macos"] .top-link,
+body[data-style="macos"] .doc-reveal {
+  text-decoration: none;
+}
+
+body[data-style="macos"] .text-btn:hover,
+body[data-style="macos"] .top-link:hover {
+  color: var(--text);
+}
+
+/* The usage meter: a plain rounded bar, not dots. */
+body[data-style="macos"] .usage-bar {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--mac-10);
+  overflow: hidden;
+}
+
+body[data-style="macos"] .usage-bar span {
+  border-radius: 2px;
+}
+
+body[data-style="macos"] .side-foot {
+  font-size: 11px;
+}
+
+/* ----------------------- one tint for what you touch ---------------------- */
+
+/*
+ * The rule: what you press or type in, and what floats, is white-tinted; panels
+ * and what you read aren't. Controls share --mac-glass; a chosen one is stronger.
+ */
+body[data-style="macos"] .side-new {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 13px;
+  background: var(--mac-fill);
+  transition: background var(--t-quick) ease, color var(--t-quick) ease;
+}
+
+body[data-style="macos"] .side-new:hover {
+  background: var(--mac-fill-strong);
+}
+
+body[data-style="macos"] .intro-starter {
+  border: 0;
+  border-radius: 14px;
+  background: var(--mac-glass);
+  box-shadow: var(--mac-glass-edge);
+}
+
+body[data-style="macos"] .intro-starter:hover {
+  background: var(--mac-10);
+}
+
+/* The terminal's A− and A+: a pair of soft buttons. */
+body[data-style="macos"] .term-sizes {
+  gap: 2px;
+  border: 0;
+  border-radius: 14px;
+}
+
+body[data-style="macos"] .term-size {
+  height: 28px;
+  border: 0;
+  background: var(--mac-glass);
+  box-shadow: var(--mac-glass-edge);
+}
+
+body[data-style="macos"] .term-size:hover {
+  background: var(--mac-10);
+}
+
+body[data-style="macos"] .doc-action:hover,
+body[data-style="macos"] .doc-close:hover,
+body[data-style="macos"] .app-dock-btn:hover,
+body[data-style="macos"] .file-chip-save:hover {
+  background: var(--mac-fill-strong);
+}
+
+/* What's chosen in a menu. */
+body[data-style="macos"] .menu-item.is-on {
+  background: var(--mac-fill-strong);
+}
+
+body[data-style="macos"] .btn-danger {
+  color: #ffb4ab;
+}
+
+/* (A link beside a picture, as the other links.) */
+body[data-style="macos"] .media-caption button {
+  text-decoration: none;
+}
+
+/* The terminal's frame and scrollbar, from styles.css and the terminal itself. */
+body[data-style="macos"] .term-frame {
+  border-color: var(--mac-hairline);
+}
+
+body[data-style="macos"] .term-host .xterm-scrollable-element .slider {
+  background: var(--mac-10) !important;
+}
+
+/* ------------------------ settings, menus, dialogs ------------------------ */
+
+/* Pages and panels of controls, not a view over the scene: a stronger tint, by the same names. */
+body[data-style="macos"] .settings-page {
+  --mac-5: rgba(255, 255, 255, 0.1);
+  --mac-10: rgba(255, 255, 255, 0.22);
+  --mac-card: rgba(255, 255, 255, 0.08);
+  --mac-glass: rgba(255, 255, 255, 0.12);
+  --mac-select: rgba(255, 255, 255, 0.24);
+  --mac-fill: rgba(255, 255, 255, 0.1);
+  --mac-fill-strong: rgba(255, 255, 255, 0.2);
+  /* Secondary words, light enough on the stronger tint, even over a pale picture. */
+  --muted: #dfe2e4;
+  --faint: #cfd2d5;
+  --body: #f2f3f4;
+}
+
+body[data-style="macos"] .set-fields {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+body[data-style="macos"] :is(.pop, .dialog) {
+  --mac-10: rgba(255, 255, 255, 0.26);
+  --mac-glass: rgba(255, 255, 255, 0.14);
+  --mac-select: rgba(255, 255, 255, 0.18);
+  --mac-fill-strong: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ---------------------------- a document's panel --------------------------- */
+
+/* Beside the chat: its own floating card, clear of the window's edge, tinted and frosted. */
+body[data-style="macos"] .viewer.is-side {
+  margin: 0 10px 10px 4px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: var(--mac-glass-edge);
+  backdrop-filter: var(--mac-glass-filter);
+  --muted: #dfe2e4;
+  --faint: #cfd2d5;
+  --body: #f2f3f4;
+}
+
+body[data-style="macos"] .viewer.is-side .doc-bar {
+  padding: 0 8px 0 16px;
+}
+
+body[data-style="macos"] .viewer.is-side .doc-body {
+  max-width: none;
+  padding: 22px 26px 48px;
+}
+
+/* ------------------------------ marks and icons ---------------------------- */
+
+/* Thinner lines, as on a Mac's toolbars. */
+body[data-style="macos"] svg[stroke="currentColor"],
+body[data-style="macos"] .top-actions .icon svg {
+  stroke-width: 1.5;
+}
+
+/* Katana herself in the sidebar: the same rounded square as the app's icon. */
+body[data-style="macos"] .avatar {
+  border-radius: 8px;
+}
+
+/* Claude's and Codex's marks in the model menus: each on a small tile. */
+body[data-style="macos"] .claude-mark,
+body[data-style="macos"] .codex-mark {
+  box-sizing: content-box;
+  padding: 2px;
+  border-radius: 5px;
+  background: var(--mac-fill-strong);
+}
+
+/* ------------------------------- icon sizes -------------------------------- */
+
+/* Icons and marks a size up, and their buttons with them. */
+body[data-style="macos"] .icon {
+  width: 30px;
+  height: 30px;
+}
+
+body[data-style="macos"] .icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+body[data-style="macos"] .top-actions .icon {
+  width: 38px;
+  height: 38px;
+}
+
+body[data-style="macos"] .top-actions .icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+body[data-style="macos"] .foot-more {
+  width: 28px;
+  height: 28px;
+  margin-left: 8px;
+}
+
+body[data-style="macos"] .avatar {
+  width: 36px;
+  height: 36px;
+}
+
+body[data-style="macos"] .task-dot {
+  width: 12px;
+  height: 12px;
+}
+
+body[data-style="macos"] .branch-mark svg {
+  width: 15px;
+  height: 15px;
+}
+
+body[data-style="macos"] .file-chip-save {
+  width: 26px;
+  height: 26px;
+}
+
+body[data-style="macos"] .file-chip-save svg {
+  width: 16px;
+  height: 16px;
+}
+
+body[data-style="macos"] .app-dock-icon svg,
+body[data-style="macos"] .doc-icon svg,
+body[data-style="macos"] .doc-action-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+body[data-style="macos"] .doc-close {
+  width: 30px;
+  height: 30px;
+}
+
+body[data-style="macos"] .doc-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+body[data-style="macos"] .dictate-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+body[data-style="macos"] .chip-mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+body[data-style="macos"] .term-empty-mark svg {
+  width: 30px;
+  height: 30px;
+}
+
+body[data-style="macos"] .chip-remove {
+  width: 26px;
+  height: 26px;
+}
+
+body[data-style="macos"] .chip-remove svg {
+  width: 16px;
+  height: 16px;
+}
+
+body[data-style="macos"] .theme-add svg {
+  width: 30px;
+  height: 30px;
+}
+
+body[data-style="macos"] .light svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* (The footer's other things give way, not the button.) */
+body[data-style="macos"] .foot-more {
+  flex: none;
+}
+
+body[data-style="macos"] .side-foot {
+  padding: 0 12px 0 18px;
+}
+
+body[data-style="macos"] .usage {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+body[data-style="macos"] .dictate-btn {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin: -3px -4px -3px 0;
+}
+
+/* Collapsed: the footer's button stays centred with everything above it. */
+body[data-style="macos"][data-rail] .side-foot {
+  padding: 0;
+}
+
+body[data-style="macos"][data-rail] .foot-more {
+  margin: 0;
+}
+
+body[data-style="macos"][data-rail] .side-head {
+  padding: 0;
+}
+
+/* =============================== the finish ============================== */
+
+/*
+ * What makes it feel made rather than styled: the scene answers what you're doing,
+ * and everything that moves shares one set of curves. Springs settle instead of
+ * stopping (util.js has the same two for what script moves). Anything big moves
+ * only at full motion; Reduced fades; Off doesn't move at all.
+ */
+body[data-style="macos"] {
+  /* From macOS 27, frame by frame (.claude/skills/macos-design/SKILL.md, "Motion, measured"). */
+  /* What floats: spring(response 0.31, damping 0.81). 460 ms to rest, 1.3% over at about 260 ms. */
+  --spring: linear(0, 0.0408, 0.1377, 0.2611, 0.3914, 0.5159, 0.6276, 0.7232, 0.8018, 0.8642, 0.9122, 0.9478, 0.9732, 0.9906, 1.0018, 1.0085, 1.0119, 1.013, 1.0127, 1.0116, 1.01, 1.0083, 1.0067, 1.0052, 1.0039, 1.0028, 1.0019, 1.0013, 1.0008, 1.0004, 1);
+  /* No bounce: spring(response 0.22, damping 1), over 300 ms. */
+  --settle: linear(0, 0.0693, 0.2118, 0.3679, 0.511, 0.6311, 0.7268, 0.8007, 0.8562, 0.8973, 0.9271, 0.9487, 0.9641, 0.9749, 0.9826, 0.988, 0.9917, 0.9943, 0.9961, 0.9973, 1);
+  /* What belongs to a window: a sheet moves on this, over 290 ms. */
+  --sheet: cubic-bezier(0.42, 0, 0.58, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-focus: cubic-bezier(0.32, 0.72, 0, 1);
+  /* How far the scene goes out of focus, and how far down it comes, behind what you read. */
+  --scene-blur: max(7px, 0.62vmax);
+  --scene-dim: 1;
+}
+
+/* ------------------------------ rack focus ----------------------------- */
+
+/*
+ * Home: the scene sharp, the picture is the point. Open anything to read or work in
+ * and it pulls out of focus and leans in a little, as a lens does: the words have
+ * nothing busy behind them, and the task lanterns turn into soft lights.
+ */
+body[data-style="macos"] .scene {
+  transform-origin: 50% 62%;
+  transition: filter 1000ms var(--ease-focus), transform 1300ms var(--ease-focus);
+}
+
+body[data-style="macos"][data-view="work"] .scene {
+  filter: blur(var(--scene-blur)) brightness(var(--scene-dim));
+  transform: scale(1.05);
+}
+
+/* (A blur reaches past the picture's edge; behind the chat only, the panel keeps it in.) */
+body[data-style="macos"][data-backdrop="chat"] .main {
+  overflow: hidden;
+}
+
+body[data-style="macos"][data-scene="night-lake"] {
+  --scene-dim: 0.76;
+}
+
+/* Small words, over whatever the scene is doing behind them: 4.5:1 at its brightest (measured). */
+body[data-style="macos"][data-scene] :is(.chat, .terminal, .sidebar) {
+  --muted: #bcc0c4;
+  --faint: #a2a6aa;
+}
+
+
+/* Rooftop rain's clouds are bright: while you read over them they come down to what words need. */
+body[data-style="macos"][data-scene="rooftop-rain"] {
+  --scene-dim: 0.56;
+}
+
+body[data-style="macos"][data-motion="reduced"] .scene {
+  transition: filter 240ms ease;
+}
+
+body[data-style="macos"][data-motion="reduced"][data-view="work"] .scene {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="macos"] .scene {
+    transition: filter 240ms ease;
+  }
+
+  body[data-style="macos"][data-view="work"] .scene {
+    transform: none;
+  }
+}
+
+/* ------------------------------ real glass ----------------------------- */
+
+/*
+ * The sidebar frosts what's behind it. Only on the sharp scene: out of focus it already
+ * is, and glass over a blur would cost for nothing.
+ */
+body[data-style="macos"][data-scene][data-backdrop="window"] .sidebar {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(26px) saturate(150%);
+  transition: backdrop-filter 900ms var(--ease-focus), background 900ms ease;
+}
+
+body[data-style="macos"][data-scene][data-backdrop="window"][data-view="work"] .sidebar {
+  background: var(--mac-5);
+  backdrop-filter: none;
+}
+
+/* The lamp behind the sidebar is the brightest thing in the photograph: a wider frost spreads it out, and the glass holds the rest back. */
+body[data-style="macos"][data-scene="rooftop-rain"][data-backdrop="window"] .sidebar {
+  backdrop-filter: blur(64px) saturate(130%) brightness(0.82);
+}
+
+body[data-style="macos"][data-scene="rooftop-rain"][data-backdrop="window"][data-view="work"] .sidebar {
+  backdrop-filter: blur(40px) brightness(0.92);
+}
+
+/* ---------------------------- words on the scene ------------------------ */
+
+/* A shadow you feel rather than see: no smudge around the headings. */
+body[data-style="macos"][data-scene] .shell {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.42);
+}
+
+body[data-style="macos"][data-scene] .stage,
+body[data-style="macos"][data-scene][data-backdrop="window"] .sidebar {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.42), 0 0 16px rgba(0, 0, 0, 0.22);
+}
+
+body[data-style="macos"][data-scene] .ex-head {
+  letter-spacing: -0.011em;
+}
+
+/* What scrolls fades away under the toolbar as well as above the prompt bar. */
+body[data-style="macos"] .stage {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 20px, #000 calc(100% - 26px), transparent 100%);
+}
+
+/* ------------------------------ the home screen ------------------------- */
+
+/*
+ * A poster: the line and the prompt set where the picture is quiet, the picture left
+ * whole. Over the lake that's the sky, with the mountains and the boats below; over the
+ * rooftop, the middle of the picture.
+ */
+body[data-style="macos"] .stage.is-new {
+  -webkit-mask-image: none;
+}
+
+body[data-style="macos"] .newtask {
+  margin-top: -4vh;
+  animation: none;
+}
+
+body[data-style="macos"][data-scene="night-lake"] .stage.is-new {
+  align-items: flex-start;
+}
+
+body[data-style="macos"][data-scene="night-lake"] .stage.is-new .column {
+  padding-top: max(36px, 7.5vh);
+}
+
+body[data-style="macos"][data-scene="night-lake"] .newtask {
+  margin-top: 0;
+}
+
+/* Over the rooftop: in the middle of the panel (the bar above and the padding under the column are made up for). */
+body[data-style="macos"][data-scene="rooftop-rain"] .stage.is-new .column {
+  padding: 0;
+}
+
+body[data-style="macos"][data-scene="rooftop-rain"] .newtask {
+  margin-top: -52px;
+}
+
+/* There it sits over the city lights: its small words in white, and the bar holds the lights back. */
+body[data-style="macos"][data-scene="rooftop-rain"] :is(.newtask-with, .newtask-today, .newtask .foot-meta, .newtask .foot-meta button) {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+}
+
+body[data-style="macos"][data-scene="rooftop-rain"] .newtask .composer {
+  backdrop-filter: blur(24px) saturate(140%) brightness(0.78);
+}
+
+body[data-style="macos"][data-scene="rooftop-rain"] .newtask .composer-input::placeholder {
+  color: #e8eaec;
+}
+
+body[data-style="macos"] .newtask-greeting {
+  order: 1;
+  max-width: none;
+  margin: 0 0 24px;
+  color: #fff;
+  font-size: clamp(25px, 2.5vw, 38px);
+  font-weight: 600;
+  letter-spacing: -0.024em;
+  line-height: 1.14;
+  text-align: center;
+  text-wrap: balance;
+}
+
+body[data-style="macos"][data-scene] .newtask-greeting {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 26px rgba(0, 0, 0, 0.45);
+}
+
+/* (Its right edge over the mic: flush with the bar it would hang past the rounded corner.) */
+body[data-style="macos"] .newtask > .foot-over {
+  order: 2;
+}
+
+body[data-style="macos"] .newtask .foot-meta {
+  margin-right: 16px;
+}
+
+body[data-style="macos"] .newtask .composer {
+  order: 3;
+  background: var(--mac-glass);
+}
+
+body[data-style="macos"] .newtask-with {
+  order: 4;
+  margin-top: 12px;
+  color: #c8ccd0;
+  font-size: 12px;
+  text-align: center;
+}
+
+body[data-style="macos"] .newtask-today {
+  order: 5;
+  margin-top: 6px;
+  color: #c8ccd0;
+  font-size: 12px;
+  text-align: center;
+}
+
+body[data-style="macos"] .newtask-with .chooser {
+  color: inherit;
+}
+
+/* (The line under the box names the model and effort; over it, only how the task runs.) */
+body[data-style="macos"] .newtask .foot-meta > :not(.mode-pick) {
+  display: none;
+}
+
+body[data-style="macos"] .chooser {
+  transition: color 160ms ease;
+}
+
+body[data-style="macos"] .foot-project[hidden] {
+  display: none;
+}
+
+body[data-style="macos"] .side-empty:empty {
+  display: none;
+}
+
+/* ----------------------------- the selection ---------------------------- */
+
+/* One highlight, gliding: rows don't each light up, it travels to the one you chose. */
+.glide {
+  display: none;
+}
+
+body[data-style="macos"] .sidebar {
+  position: relative;
+}
+
+body[data-style="macos"] .glide {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  border-radius: var(--r);
+  background: var(--mac-select);
+  box-shadow: var(--mac-glass-edge);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 460ms var(--spring), width 460ms var(--spring), height 300ms var(--ease-out), opacity 180ms ease, background 200ms ease;
+}
+
+body[data-style="macos"] .glide.is-on {
+  opacity: 1;
+}
+
+body[data-style="macos"][data-blurred] .glide {
+  background: var(--mac-fill);
+}
+
+body[data-style="macos"] .set-nav .glide {
+  background: var(--mac-fill-strong);
+  box-shadow: none;
+}
+
+body[data-style="macos"] :is(.side-head, .side-agent, .side-list, .side-foot),
+body[data-style="macos"] .set-nav-item {
+  position: relative;
+  z-index: 1;
+}
+
+/* The row itself no longer draws what's chosen. */
+body[data-style="macos"] .side-task.is-active,
+body[data-style="macos"] .side-agent.is-active,
+body[data-style="macos"][data-blurred] .side-task.is-active,
+body[data-style="macos"][data-blurred] .side-agent.is-active,
+body[data-style="macos"] .set-nav-item[aria-current="true"] {
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* ------------------------------ status dots ----------------------------- */
+
+/*
+ * Each state its own shape, readable at a glance without colour: an empty ring waits;
+ * a light circling the ring is at work; a solid dot has news; a solid dot sending out
+ * a ring needs you. Only transform and opacity move, so they never repaint.
+ */
+body[data-style="macos"] :is(.task-dot, .status-dot) {
+  width: 9px;
+  height: 9px;
+  border: 1.25px solid var(--faint);
+  background: transparent;
+  transition: border-color 220ms ease, background 220ms ease;
+}
+
+body[data-style="macos"] .task-dot {
+  margin: 0 1.5px;
+}
+
+body[data-style="macos"] :is(.task-dot, .status-dot).is-unread {
+  border-color: #fff;
+  background: #fff;
+}
+
+body[data-style="macos"] :is(.task-dot, .status-dot).is-working {
+  position: relative;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: transparent;
+}
+
+body[data-style="macos"] :is(.task-dot, .status-dot).is-working::before {
+  inset: -1.25px;
+  background: conic-gradient(from 0deg, rgba(255, 255, 255, 0) 0 38%, #fff 100%);
+  box-shadow: none;
+  opacity: 1;
+  -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 1.75px), #000 calc(100% - 1.25px));
+  animation: dot-orbit 1.15s linear infinite;
+}
+
+body[data-style="macos"] :is(.task-dot, .status-dot).is-needs {
+  position: relative;
+  border-color: #fff;
+  background: #fff;
+}
+
+body[data-style="macos"] :is(.task-dot, .status-dot).is-needs::before {
+  inset: -1.25px;
+  border: 1.25px solid #fff;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0;
+  animation: dot-ping 1.9s var(--ease-out) infinite;
+}
+
+body[data-style="macos"] :is(.task-dot, .status-dot):is(.is-working, .is-needs)::after {
+  display: none;
+}
+
+@keyframes dot-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dot-ping {
+  0% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(2.5);
+  }
+}
+
+@keyframes dot-land {
+  from {
+    transform: scale(0.2);
+  }
+}
+
+body[data-style="macos"] .task-dot.is-unread {
+  animation: dot-land 420ms var(--spring);
+}
+
+body[data-style="macos"][data-motion="reduced"] :is(.task-dot, .status-dot).is-working::before {
+  animation-duration: 2.4s;
+}
+
+body[data-style="macos"][data-motion="reduced"] :is(.task-dot, .status-dot).is-needs::before {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="macos"] :is(.task-dot, .status-dot).is-working::before {
+    animation-duration: 2.4s;
+  }
+
+  body[data-style="macos"] :is(.task-dot, .status-dot).is-needs::before {
+    animation: none;
+  }
+}
+
+/* --------------------------------- touch --------------------------------- */
+
+/* Everything you can press answers: it gives a little under the finger. (Its colours change at once at full motion: see below.) */
+body[data-style="macos"] :is(.btn, .key-btn, .side-new, .icon, .chip-opt, .side-task, .side-agent, .intro-starter, .file-chip, .set-nav-item, .chooser, .term-size, .app-dock-btn, .doc-action, .doc-close, .foot-project, .usage) {
+  transition: background 170ms ease, color 170ms ease, box-shadow 200ms ease, opacity 170ms ease, transform 300ms var(--settle);
+}
+
+/* (Menus answer at once, as a Mac's do.) */
+body[data-style="macos"] .menu-item {
+  transition: none;
+}
+
+/* The lights: greying when the window isn't in front, a touch bigger under the pointer. */
+body[data-style="macos"] .light {
+  transition: background 220ms ease, transform 300ms var(--settle);
+}
+
+body[data-style="macos"] .light svg {
+  transition: opacity 120ms ease;
+}
+
+/* The prompt bar wakes up when it has the keyboard. */
+body[data-style="macos"] .composer {
+  transition: background 240ms ease, box-shadow 280ms ease;
+}
+
+body[data-style="macos"] .composer:focus-within {
+  background: rgba(255, 255, 255, 0.095);
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.24), 0 0 0 0.5px rgba(255, 255, 255, 0.3), 0 0 26px -6px rgba(255, 255, 255, 0.16);
+}
+
+/* A switch: the knob stretches as you press and slides across, no bounce. */
+body[data-style="macos"] .toggle {
+  transition: background 150ms linear;
+}
+
+body[data-style="macos"] .toggle::after {
+  transition: transform 300ms var(--settle), width 180ms ease, background 150ms linear;
+}
+
+body[data-style="macos"] .chip-opt.has-preview .theme-preview {
+  transition: transform 420ms var(--spring);
+}
+
+/* --------------------------------- motion -------------------------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Hover and colour change at once: a Mac's menu highlight jumps between frames. Only the press moves. */
+  body[data-style="macos"][data-motion="full"] {
+    --t-quick: 0ms;
+  }
+
+  body[data-style="macos"][data-motion="full"] :is(.btn, .key-btn, .side-new, .icon, .chip-opt, .side-task, .side-agent, .intro-starter, .file-chip, .set-nav-item, .chooser, .term-size, .app-dock-btn, .doc-action, .doc-close, .foot-project, .usage) {
+    transition: transform 300ms var(--settle);
+  }
+
+  body[data-style="macos"][data-motion="full"] :is(.btn, .key-btn, .side-new, .icon, .chip-opt, .side-task, .side-agent, .intro-starter, .file-chip, .set-nav-item, .term-size, .app-dock-btn, .doc-action, .doc-close):active {
+    transform: scale(0.97);
+    transition-duration: 70ms;
+  }
+
+  body[data-style="macos"][data-motion="full"] .light:hover {
+    transform: scale(1.12);
+  }
+
+  body[data-style="macos"][data-motion="full"] .toggle:active::after {
+    width: 18px;
+  }
+
+  body[data-style="macos"][data-motion="full"] .toggle[aria-checked="true"]:active::after {
+    transform: translateX(10px);
+  }
+
+  body[data-style="macos"][data-motion="full"] .chip-opt.has-preview:hover .theme-preview {
+    transform: scale(1.018);
+  }
+
+  /* The opening: the scene comes up out of the dark, then the panels settle over it. Once, at launch. */
+  body[data-style="macos"][data-motion="full"][data-boot] .scene {
+    animation: scene-dawn 2000ms var(--ease-focus) both;
+  }
+
+  body[data-style="macos"][data-motion="full"][data-boot] .sidebar {
+    animation: panel-left 1000ms var(--spring) 380ms both;
+  }
+
+  body[data-style="macos"][data-motion="full"][data-boot] .main {
+    animation: panel-rise 1100ms var(--spring) 460ms both;
+  }
+
+  @keyframes scene-dawn {
+    from {
+      opacity: 0;
+      filter: blur(24px) brightness(0.35);
+      transform: scale(1.09);
+    }
+  }
+
+  @keyframes panel-left {
+    from {
+      opacity: 0;
+      transform: translateX(-14px);
+    }
+  }
+
+  @keyframes panel-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.992);
+    }
+  }
+
+  /* Changing page inside a window is one frame on the Mac: nothing fades or rises. */
+  body[data-style="macos"][data-motion="full"] .pane {
+    animation: none;
+  }
+
+  /* Something new in the chat: your message comes up from the prompt bar, the answer's parts one after another. */
+  body[data-style="macos"][data-motion="full"] .ex.is-new {
+    animation: none;
+  }
+
+  body[data-style="macos"][data-motion="full"] .ex.is-new > * {
+    animation: ex-rise 560ms var(--ease-out) both;
+  }
+
+  body[data-style="macos"][data-motion="full"] .ex.is-new > :is(.ex-user, .ex-user-images, .ex-user-group) {
+    transform-origin: 100% 100%;
+    animation: ex-sent 620ms var(--spring) both;
+  }
+
+  body[data-style="macos"][data-motion="full"] .ex.is-new > :nth-child(2) { animation-delay: 60ms; }
+  body[data-style="macos"][data-motion="full"] .ex.is-new > :nth-child(3) { animation-delay: 120ms; }
+  body[data-style="macos"][data-motion="full"] .ex.is-new > :nth-child(4) { animation-delay: 180ms; }
+  body[data-style="macos"][data-motion="full"] .ex.is-new > :nth-child(n + 5) { animation-delay: 240ms; }
+
+  @keyframes ex-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  }
+
+  @keyframes ex-sent {
+    from {
+      opacity: 0;
+      transform: translateY(26px) scale(0.96);
+    }
+  }
+
+  body[data-style="macos"][data-motion="full"] .side-task-sub {
+    animation: sub-in 320ms var(--ease-out);
+  }
+
+  @keyframes sub-in {
+    from {
+      opacity: 0;
+      transform: translateY(-3px);
+    }
+  }
+
+  /*
+   * Dialogs move as a sheet does on the Mac, no scale and no bounce: down a little, and back up the
+   * way they came. 7.6% of the height, 290 ms; the dialog is solid after 150, the dim takes 250.
+   * The dim is its own layer: a fade on the overlay would multiply into the dialog's.
+   */
+  body[data-style="macos"][data-motion="full"] .overlay {
+    background: transparent;
+    backdrop-filter: none;
+    animation: none;
+  }
+
+  body[data-style="macos"][data-motion="full"] .overlay::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--mac-7);
+    backdrop-filter: blur(8px);
+    animation: veil-in 250ms linear;
+    transition: opacity 250ms linear;
+  }
+
+  body[data-style="macos"][data-motion="full"] .overlay.is-leaving {
+    pointer-events: none;
+  }
+
+  body[data-style="macos"][data-motion="full"] .overlay.is-leaving::before {
+    opacity: 0;
+  }
+
+  body[data-style="macos"][data-motion="full"] .dialog {
+    position: relative;
+    animation:
+      sheet-in 290ms var(--sheet),
+      veil-in 150ms linear;
+    transition:
+      transform 290ms var(--sheet),
+      opacity 250ms linear;
+  }
+
+  /* (dialog.js holds where an unfinished opening had got to, for the transition to start from.) */
+  body[data-style="macos"][data-motion="full"] .dialog.is-leaving {
+    opacity: 0;
+    transform: translateY(-7.6%);
+    animation: none;
+  }
+
+  @keyframes veil-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes sheet-in {
+    from {
+      transform: translateY(-7.6%);
+    }
+  }
+
+  /* (Script plays menus and popups, once they know where they are: see popIn in util.js.) */
+  body[data-style="macos"][data-motion="full"] .pop {
+    animation: none;
+  }
+}
+
+/* ============================ the whole app, looked at ==================== */
+
+/*
+ * From going through every screen in every theme: what still read as the old
+ * look, couldn't be read, or sat in the wrong place.
+ */
+
+/* ------------------------------- focus ring ------------------------------- */
+
+/* Soft and rounded, whatever it's around; never a square box round a word. */
+body[data-style="macos"] :focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+
+body[data-style="macos"] :is(.btn, .key-btn, .side-new, .chip-opt, .file-chip, .intro-starter, .app-back):focus-visible {
+  border-radius: 14px;
+}
+
+body[data-style="macos"] :is(.icon, .light, .dictate-btn, .flat-dot):focus-visible {
+  border-radius: 50%;
+}
+
+/* (Clear of the chosen dot's ring.) */
+body[data-style="macos"] .flat-dot:focus-visible {
+  outline-offset: 3px;
+}
+
+body[data-style="macos"] .chip-opt.has-preview:focus-visible {
+  border-radius: 12px;
+}
+
+/* The field's own ring, and the slider's on its thumb. */
+body[data-style="macos"] :is(.composer-input, .text-field, .dialog-input, .slider):focus-visible {
+  outline: none;
+}
+
+/* --------------------------------- sizes --------------------------------- */
+
+/* Nothing you need to read under 11 px (the Mac's smallest is 10, for captions nobody needs). */
+body[data-style="macos"] .ex-status-text,
+body[data-style="macos"] .foot-meta,
+body[data-style="macos"] .newtask .foot-meta {
+  font-size: 11px;
+}
+
+body[data-style="macos"] .ex-sub {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+body[data-style="macos"] .ex-team-row {
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* Sub-agents at work, one block on one left edge: the headline with its time and use on the same line, their rows, Stop. Spacing in steps of 4. */
+body[data-style="macos"] .ex-work-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
+  margin-top: 23px;
+}
+
+body[data-style="macos"] .ex-work-title .ex-head {
+  flex: none;
+  max-width: 100%;
+  margin: 0;
+}
+
+body[data-style="macos"] .ex-work-title .ex-status-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+body[data-style="macos"] .has-subagents .ex-sub {
+  margin-top: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Columns shared by every row: the spinner, who (wide enough for the usual names, so the
+ * words beside it stay put as rows go), what for. Rows are real boxes (subgrid), so they can slide.
+ */
+body[data-style="macos"] .ex-subagents {
+  grid-template-columns: 9px minmax(min(10em, 40%), max-content) minmax(0, 1fr);
+  grid-auto-rows: 24px;
+  column-gap: 8px;
+  row-gap: 0;
+  margin-top: 4px;
+  padding-left: 0;
+  font-size: 12px;
+}
+
+/* (Alone, once the turn is over: where a headline would start.) */
+body[data-style="macos"] .ex > .ex-subagents {
+  margin-top: 23px;
+}
+
+body[data-style="macos"] .ex-subagents .ex-team-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  line-height: 24px;
+}
+
+body[data-style="macos"] .ex-subagents .ex-team-row b {
+  min-width: 0;
+  max-width: 20em;
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* (A little more air between who and what than the spinner needs.) */
+body[data-style="macos"] .ex-subagents .ex-team-text {
+  min-width: 0;
+  padding-left: 4px;
+}
+
+/* Stop, a step further from the rows than they are from the headline. */
+body[data-style="macos"] .has-subagents .ex-actions {
+  margin-top: 12px;
+}
+
+body[data-style="macos"] .key-btn kbd {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+body[data-style="macos"] :is(.review-title, .review-note, .review-time) {
+  font-size: 11.5px;
+}
+
+body[data-style="macos"] .review-title {
+  font-weight: 500;
+}
+
+body[data-style="macos"] .menu-item small {
+  font-size: 11px;
+}
+
+body[data-style="macos"] .side-agent-count {
+  font-size: 11px;
+}
+
+/* -------------------------- words on stronger glass ----------------------- */
+
+/* Menus and dialogs are lighter than the chat: grey words that work there disappear here. */
+body[data-style="macos"] :is(.pop, .dialog) {
+  --muted: #e6e8ea;
+  --faint: #d6d9dc;
+  --body: #f4f5f6;
+}
+
+body[data-style="macos"] .dialog-body {
+  color: #e6e8ea;
+}
+
+body[data-style="macos"] :is(.menu-item.is-danger, .btn-danger) {
+  color: #ffd2cc;
+}
+
+body[data-style="macos"] .mode-pop .menu-desc {
+  font-size: 11px;
+}
+
+body[data-style="macos"] .dialog-choice {
+  border: 0;
+  border-radius: 10px;
+  background: var(--mac-glass);
+}
+
+body[data-style="macos"] .dialog-choice:hover {
+  background: var(--mac-select);
+}
+
+/* --------------------------- the effort slider ---------------------------- */
+
+body[data-style="macos"] .pop.effort-pop {
+  --thumb: 42px;
+  width: 400px;
+  padding: 12px 16px 14px;
+}
+
+body[data-style="macos"] .effort-pop .pop-title {
+  margin: 0 0 10px;
+}
+
+.effort-slide {
+  position: relative;
+  height: 24px;
+}
+
+.effort-rail {
+  position: absolute;
+  top: 9px;
+  right: 0;
+  left: 0;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.effort-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc((100% - var(--thumb)) * var(--at) + var(--thumb) / 2);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.82);
+  transition: width 460ms var(--spring);
+}
+
+/* The bar you drag: a rounded rectangle that glides from stop to stop. */
+.effort-thumb {
+  position: absolute;
+  top: 0;
+  left: calc((100% - var(--thumb)) * var(--at));
+  width: var(--thumb);
+  height: 24px;
+  border-radius: 8px;
+  background: #fff;
+  pointer-events: none;
+  transition: left 460ms var(--spring), transform 160ms var(--ease-out), box-shadow 120ms ease;
+}
+
+.effort-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+}
+
+.effort-input::-webkit-slider-runnable-track {
+  height: 24px;
+}
+
+.effort-input::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--thumb);
+  height: 24px;
+}
+
+.effort-input:active ~ .effort-thumb {
+  transform: scale(0.95, 0.9);
+}
+
+/* (Only the bar shows focus: the page-wide outline would ring the whole track.) */
+body[data-style="macos"] .effort-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.effort-input:focus-visible ~ .effort-thumb {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.28);
+}
+
+/* Each word sits right under its stop. */
+body[data-style="macos"] .effort-steps {
+  position: relative;
+  display: block;
+  height: 18px;
+  margin-top: 10px;
+}
+
+body[data-style="macos"] .effort-steps button {
+  position: absolute;
+  left: calc((100% - var(--thumb)) * var(--at) + var(--thumb) / 2);
+  transform: translateX(-50%);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+body[data-style="macos"] .effort-hint,
+body[data-style="macos"] .pop-title {
+  font-size: 11.5px;
+}
+
+/* ------------------------------ prompt bar ------------------------------- */
+
+/* Listening: the microphone lights up, softly breathing. */
+body[data-style="macos"] .dictate-btn {
+  border: 0;
+  border-radius: 50%;
+}
+
+body[data-style="macos"] .dictate-btn.is-listening {
+  background: #fff;
+  color: #101214;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body[data-style="macos"][data-motion="full"] .dictate-btn.is-listening {
+    animation: mic-breathe 1.8s ease-in-out infinite;
+  }
+
+  @keyframes mic-breathe {
+    50% {
+      box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.16);
+    }
+  }
+}
+
+/* A phrase is still being heard: its words land when the ring stops. */
+body[data-style="macos"] .dictate-btn.is-hearing {
+  position: relative;
+}
+
+body[data-style="macos"] .dictate-btn.is-hearing::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 1.5px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body[data-style="macos"][data-motion="full"] .dictate-btn.is-hearing::after {
+    animation: mic-hearing 0.9s linear infinite;
+  }
+
+  @keyframes mic-hearing {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+/* A picture you've attached: rounded, as everything else in the bar. */
+body[data-style="macos"] .composer-images {
+  margin-bottom: 10px;
+}
+
+body[data-style="macos"] .composer-image {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 0 0.5px var(--mac-hairline);
+}
+
+/* What the app has to tell you: a floating note, not coloured small print on the page. */
+body[data-style="macos"] .chat-banner {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 8px;
+  padding: 7px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: var(--mac-glass-edge);
+  backdrop-filter: var(--mac-glass-filter);
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+/* Words you can press in a sentence: plain until you point at them. */
+body[data-style="macos"] .chooser {
+  text-decoration: none;
+}
+
+body[data-style="macos"] .chooser:hover {
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.5);
+  text-underline-offset: 3px;
+}
+
+/* -------------------------------- answers --------------------------------- */
+
+/* Headings you can tell from bold text. */
+body[data-style="macos"] .md-heading {
+  font-weight: 600;
+  letter-spacing: -0.006em;
+}
+
+body[data-style="macos"] .ex-body .md-heading.is-h1,
+body[data-style="macos"] .ex-body .md-heading.is-h2 {
+  margin-top: 22px;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+body[data-style="macos"] .ex-body .md-heading.is-h3,
+body[data-style="macos"] .ex-body .md-heading.is-h4 {
+  margin-top: 18px;
+  margin-bottom: 6px;
+  font-size: 13.5px;
+}
+
+body[data-style="macos"] .doc-body .md-heading.is-h1 {
+  margin: 28px 0 12px;
+  font-size: 22px;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+body[data-style="macos"] .doc-body .md-heading.is-h2 {
+  margin: 24px 0 10px;
+  font-size: 17px;
+}
+
+body[data-style="macos"] .doc-body .md-heading.is-h3 {
+  margin: 20px 0 8px;
+  font-size: 14.5px;
+}
+
+body[data-style="macos"] .doc-body > .md-heading:first-child {
+  margin-top: 0;
+}
+
+body[data-style="macos"] .md-quote {
+  margin: 0 0 14px;
+  padding-left: 12px;
+  border-left: 2px solid rgba(255, 255, 255, 0.28);
+  color: var(--muted);
+}
+
+/* A table is a table, on the same soft card as code. */
+.md-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 14px;
+}
+
+.md-table {
+  border-collapse: collapse;
+}
+
+.md-table th,
+.md-table td {
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+body[data-style="macos"] .md-table-wrap {
+  border-radius: 10px;
+  background: var(--mac-fill);
+  box-shadow: inset 0 0 0 0.5px var(--mac-hairline);
+}
+
+body[data-style="macos"] .md-table,
+body[data-style="macos"] .doc-body .md-table {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+body[data-style="macos"] .md-table th {
+  color: var(--text);
+  font-weight: 600;
+}
+
+body[data-style="macos"] .md-table th,
+body[data-style="macos"] .md-table td {
+  padding: 7px 12px;
+  border-bottom: 0.5px solid var(--mac-hairline);
+}
+
+body[data-style="macos"] .md-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* The Done and Stop buttons: close under the words, the same distance however the answer ends. */
+body[data-style="macos"] .ex-actions {
+  margin-top: 10px;
+}
+
+body[data-style="macos"] .ex-body > :last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Long code wraps inside its card rather than pushing the page sideways. */
+body[data-style="macos"] .md-pre {
+  display: flow-root;
+  overflow-wrap: anywhere;
+}
+
+/* Its copy and download icons, in the card's top right corner. */
+.md-pre-actions {
+  float: right;
+  display: flex;
+  gap: 2px;
+  margin: -5px -7px 0 10px;
+  user-select: none;
+}
+
+.md-pre-actions button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--muted);
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.md-pre-actions button:hover {
+  background: var(--mac-fill);
+  color: var(--text);
+}
+
+.md-pre-actions svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Done, just pressed: lit, with a tick, as the chat closes down. */
+body[data-style="macos"] .key-btn.is-finishing,
+body[data-style="macos"] .key-btn.is-finishing:hover {
+  justify-content: center;
+  border-color: #fff;
+  background: #fff;
+  color: #1d1f22;
+}
+
+.key-btn.is-finishing svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.5;
+}
+
+body[data-style="macos"] :is(.ex, .ex-body, .column) {
+  min-width: 0;
+}
+
+/* ---------------------------------- sidebar -------------------------------- */
+
+/* The footer: the task's context and the plan's use on the left, one over the other; the ··· button on the far right. (The folder is chosen on the New task screen.) */
+body[data-style="macos"] .side-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-content: center;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  height: 50px;
+  padding: 0 8px 0 19px;
+}
+
+body[data-style="macos"] .foot-project {
+  display: none;
+}
+
+body[data-style="macos"] .usage {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  font-size: 11px;
+}
+
+body[data-style="macos"] .usage-plan {
+  display: block;
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+body[data-style="macos"][data-rail] .usage-plan {
+  display: none;
+}
+
+body[data-style="macos"] .side-foot .usage-bar {
+  display: none;
+}
+
+body[data-style="macos"] .side-foot .foot-more {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  justify-self: end;
+  margin-left: 0;
+}
+
+/* Just the three dots: the circle is the button's own, on hover and while its menu is open, not a second one drawn around them. */
+body[data-style="macos"] .foot-more svg circle {
+  display: none;
+}
+
+body[data-style="macos"] .foot-more svg {
+  stroke-width: 2.6;
+}
+
+body[data-style="macos"] .foot-more.is-open {
+  background: var(--mac-fill-strong);
+}
+
+body[data-style="macos"] .foot-more:focus-visible {
+  outline-offset: 0;
+}
+
+body[data-style="macos"][data-rail] .side-foot {
+  display: flex;
+  justify-content: center;
+  height: 50px;
+}
+
+/* Beside the dots: the same quiet button, and all the footer has once collapsed (hovering brings the rest). */
+body[data-style="macos"] .side-foot {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+body[data-style="macos"] .side-foot .foot-collapse {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin: -3px -6px -3px 0;
+}
+
+body[data-style="macos"] .side-foot .foot-more {
+  grid-column: 3;
+}
+
+body[data-style="macos"][data-rail] .side-foot .foot-collapse {
+  margin: 0;
+}
+
+body[data-style="macos"][data-rail] .side-foot .foot-more {
+  display: none;
+}
+
+/*
+ * Collapsed, slid out under the mouse: the full sidebar, over the rail's narrow column, so the
+ * chat beside it stays exactly where it is. It floats now, so it's glass like everything that floats.
+ */
+body[data-style="macos"][data-peek] {
+  --side: 68px;
+}
+
+body[data-style="macos"][data-peek] .sidebar,
+body[data-style="macos"] .sidebar.is-holding {
+  justify-self: start;
+  width: 224px;
+}
+
+body[data-style="macos"][data-peek] .sidebar,
+body[data-style="macos"] .sidebar.is-sliding,
+body[data-style="macos"] .sidebar.is-holding {
+  z-index: 30;
+}
+
+/* The rail wears the same glass, so sliding out and back never changes it. */
+body[data-style="macos"][data-scene][data-rail] .sidebar,
+body[data-style="macos"][data-scene][data-peek] .sidebar,
+body[data-style="macos"][data-scene][data-backdrop="window"][data-view][data-rail] .sidebar,
+body[data-style="macos"][data-scene][data-backdrop="window"][data-view][data-peek] .sidebar,
+body[data-style="macos"][data-scene][data-backdrop="window"][data-view] .sidebar.is-holding {
+  background: var(--mac-10);
+  box-shadow: var(--mac-glass-edge);
+  backdrop-filter: blur(36px) saturate(170%);
+}
+
+/* Its bright lamp again: the wider frost that holds it back. */
+body[data-style="macos"][data-scene="rooftop-rain"][data-backdrop="window"][data-view][data-rail] .sidebar,
+body[data-style="macos"][data-scene="rooftop-rain"][data-backdrop="window"][data-view][data-peek] .sidebar,
+body[data-style="macos"][data-scene="rooftop-rain"][data-backdrop="window"][data-view] .sidebar.is-holding {
+  backdrop-filter: blur(64px) saturate(130%) brightness(0.82);
+}
+
+/* Closing, the words fade once rather than fading back in first. */
+body[data-style="macos"] .sidebar.is-closing :is(.side-task-text, .side-agent-name, .side-new-label, .side-agent-count, .side-foot > .foot-project, .side-foot > .usage, .side-foot > .usage-plan, .lights) {
+  animation: none !important;
+}
+
+body[data-style="macos"] .sidebar.is-sliding .side-new {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+body[data-style="macos"][data-rail] .usage {
+  display: none;
+}
+
+/* A long list fades at its edges instead of being cut in half. */
+body[data-style="macos"] .side-list {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 14px), transparent 100%);
+}
+
+/* The labels come back once the sidebar has opened, rather than squeezing through every width on the way. */
+@media (prefers-reduced-motion: no-preference) {
+  body[data-style="macos"][data-motion="full"]:not([data-rail]) :is(.side-task-text, .side-agent-name, .side-new-label, .side-agent-count, .side-foot > .foot-project, .side-foot > .usage, .side-foot > .usage-plan, .lights) {
+    animation: labels-back 200ms ease 150ms backwards;
+  }
+
+  @keyframes labels-back {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* -------------------------------- Katana's page ---------------------------- */
+
+/* Who she is, as the home screen says who you are; the old dotted picture belonged to the old look. */
+body[data-style="macos"] .agent-intro {
+  align-items: center;
+  margin-top: 0;
+  text-align: center;
+}
+
+body[data-style="macos"] .agent-intro .newtask-art {
+  display: none;
+}
+
+body[data-style="macos"] .agent-intro .newtask-title {
+  margin: 0 0 10px;
+  color: #fff;
+  font-size: clamp(25px, 2.5vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.024em;
+}
+
+body[data-style="macos"] .agent-intro .newtask-text {
+  max-width: 520px;
+  margin: 0 0 20px;
+  color: var(--body);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+body[data-style="macos"] .agent-intro .intro-starters {
+  justify-content: center;
+}
+
+body[data-style="macos"] .newtask-title {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+body[data-style="macos"] .newtask-text {
+  font-size: 13px;
+}
+
+/* ---------------------------------- settings ------------------------------- */
+
+/* A plain value on the right of its name: the name keeps its line. */
+body[data-style="macos"] .set-field:has(> .about-value):not(:has(.set-help)) .set-field-text {
+  flex: none;
+}
+
+body[data-style="macos"] .about-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  text-align: right;
+}
+
+/* Folders: the same room as every other group. */
+body[data-style="macos"] .folder-row {
+  padding: 10px 0;
+  font-size: 13px;
+}
+
+body[data-style="macos"] .folder-row + .folder-row {
+  margin-top: 0;
+  border-top: 0.5px solid var(--mac-hairline);
+}
+
+body[data-style="macos"] .folder-name {
+  font-weight: 500;
+}
+
+body[data-style="macos"] .folder-path {
+  font-size: 11.5px;
+}
+
+body[data-style="macos"] .set-fields > .text-btn {
+  align-self: flex-start;
+  margin: 2px 0 10px;
+}
+
+/* Dropping a picture: frosted over what's on screen. */
+body[data-style="macos"] .bg-drop {
+  bottom: auto;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ---------------------------------- terminal ------------------------------- */
+
+/* Its scrollbar only while you're on it, and only if there's somewhere to scroll. */
+body[data-style="macos"] .term-host .xterm-scrollable-element > .scrollbar {
+  opacity: 0 !important;
+  transition: opacity 180ms ease;
+}
+
+body[data-style="macos"] .term-host:hover .xterm-scrollable-element > .scrollbar {
+  opacity: 1 !important;
+}
+
+body[data-style="macos"] .term-host .xterm-scrollable-element .slider {
+  border-radius: 999px;
+}
+
+/* (Its words arrive a frame after the pane does: no empty flash.) */
+@media (prefers-reduced-motion: no-preference) {
+  body[data-style="macos"][data-motion="full"] .term-host {
+    animation: term-in 170ms ease-out;
+  }
+
+  @keyframes term-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* ------------------------------------ team --------------------------------- */
+
+/* A member's screen is the terminal's words on the scene, not a grey box stacked up from three tints. */
+body[data-style="macos"] .team-term .xterm,
+body[data-style="macos"] .team-term .xterm-viewport,
+body[data-style="macos"] .team-term .xterm-scrollable-element {
+  background: transparent !important;
+}
+
+body[data-style="macos"] .team-screen {
+  border: 0;
+  border-radius: 8px;
+  background: var(--mac-5);
+  box-shadow: inset 0 0 0 0.5px var(--mac-hairline);
+}
+
+body[data-style="macos"] .team-node {
+  border-radius: 12px;
+}
+
+/* -------------------------------- model marks ------------------------------ */
+
+/* White like everything else: the lights are the only colour on screen. */
+body[data-style="macos"] .claude-mark path,
+body[data-style="macos"] .codex-mark path {
+  fill: #fff;
+}
+
+/* -------------------------------- documents -------------------------------- */
+
+body[data-style="macos"] .doc-path {
+  text-overflow: ellipsis;
+}
+
+/* --------------------------- your own bright picture ----------------------- */
+
+/* Home keeps a picture sharp; a pale one comes down just enough for white words on it (scene.js measures it). */
+body[data-style="macos"][data-scene="custom"]:not([data-view="work"]) .scene {
+  filter: blur(0) brightness(var(--scene-home-dim, 1));
+}
+
+/* ------------------------------- your pictures ----------------------------- */
+
+/* In the chat: a rounded card with a fine edge, so a dark screenshot doesn't melt into the scene. The corner by the message's tail matches your bubble's. */
+body[data-style="macos"] .ex-user-image {
+  border-radius: 14px;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.22);
+}
+
+body[data-style="macos"] .ex-user-images {
+  gap: 8px;
+  align-items: flex-end;
+}
+
+/* Several together sit side by side at one height, instead of stacking at full size. */
+body[data-style="macos"] .ex-user-images:has(> :nth-child(2)) .ex-user-image {
+  max-width: 200px;
+  max-height: 140px;
+}
+
+/* The words under them belong to them. */
+body[data-style="macos"] .ex-user-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: flex-end;
+  gap: 6px;
+}
+
+/* In the prompt bar: rounded thumbnails (their × is in styles.css). */
+body[data-style="macos"] .composer-images {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+body[data-style="macos"] .composer-image {
+  border-radius: 10px;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+
+body[data-style="macos"] .composer-image img {
+  height: 56px;
+  max-width: 140px;
+  object-fit: cover;
+}
+
+/* ------------------------------- dark mode ------------------------------ */
+
+/*
+ * The same glass in graphite: every white tint becomes a dark grey, a touch cool to
+ * match the scenes, and strong enough to read over a bright picture. There are four
+ * steps up from the panels; what's chosen is always the lightest. Words, edges and
+ * rings stay light, because a dark line on dark glass can't be seen.
+ */
+body[data-style="macos"][data-dark] {
+  --mac-5: rgba(25, 27, 30, 0.56);
+  --mac-7: rgba(44, 47, 51, 0.66);
+  --mac-10: rgba(66, 70, 75, 0.74);
+  --mac-select: rgba(82, 87, 93, 0.72);
+  --mac-fill: rgba(62, 66, 71, 0.52);
+  --mac-fill-strong: rgba(82, 87, 93, 0.68);
+  --mac-hairline: rgba(255, 255, 255, 0.09);
+  --mac-glass-edge: inset 0 0.5px 0 rgba(255, 255, 255, 0.11), 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-mid: rgba(255, 255, 255, 0.12);
+  --line-strong: rgba(255, 255, 255, 0.17);
+  --muted: #b0b4b9;
+  --faint: #979ba1;
+  --body: #e4e6e9;
+}
+
+body[data-style="macos"][data-dark][data-scene][data-backdrop="window"] .sidebar {
+  background: rgba(20, 22, 25, 0.62);
+}
+
+body[data-style="macos"][data-dark] .settings-page {
+  --mac-5: rgba(44, 47, 51, 0.6);
+  --mac-10: rgba(82, 87, 93, 0.78);
+  --mac-card: rgba(32, 35, 38, 0.62);
+  --mac-glass: rgba(52, 55, 60, 0.74);
+  --mac-select: rgba(92, 97, 103, 0.84);
+  --mac-fill: rgba(62, 66, 71, 0.62);
+  --mac-fill-strong: rgba(82, 87, 93, 0.8);
+  --muted: #b8bcc1;
+  --faint: #a2a6ab;
+  --body: #e9ebed;
+}
+
+body[data-style="macos"][data-dark] .set-fields {
+  background: rgba(30, 32, 36, 0.68);
+}
+
+/* What floats over everything: the most solid, so nothing behind it competes. */
+body[data-style="macos"][data-dark] :is(.pop, .dialog) {
+  --mac-10: rgba(88, 93, 99, 0.8);
+  --mac-glass: rgba(56, 60, 65, 0.8);
+  --mac-select: rgba(88, 93, 99, 0.86);
+  --mac-fill-strong: rgba(88, 93, 99, 0.82);
+  background: rgba(32, 34, 38, 0.86);
+}
+
+body[data-style="macos"][data-dark] .overlay {
+  background: rgba(14, 15, 17, 0.42);
+}
+
+body[data-style="macos"][data-dark] :is(.viewer.is-side, .chat-banner, .bg-drop) {
+  background: rgba(32, 34, 38, 0.8);
+}
+
+body[data-style="macos"][data-dark] .viewer.is-side {
+  --muted: #b8bcc1;
+  --faint: #a2a6ab;
+  --body: #e9ebed;
+}
+
+body[data-style="macos"][data-dark] .composer:focus-within {
+  background: rgba(54, 58, 62, 0.76);
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.16), 0 0 0 0.5px rgba(255, 255, 255, 0.2);
+}
+
+/* A switch that's on has to read at a glance, on grey as it did on white. */
+body[data-style="macos"][data-dark] .toggle {
+  background: rgba(82, 87, 93, 0.62);
+}
+
+body[data-style="macos"][data-dark] .toggle[aria-checked="true"] {
+  background: #d7dade;
+  backdrop-filter: none;
+}
+
+body[data-style="macos"][data-dark] .toggle[aria-checked="true"]::after {
+  background: #1d1f22;
+}
+
+/* ---------------------------- no background ----------------------------- */
+
+/*
+ * Settings > No background (data-scene="none"): the panels are the window's flat colour, solid,
+ * in light and in dark, and in every state of the sidebar (open, rail, slid out over the
+ * chat). !important: the glass rules above each reach higher in their own state, and this
+ * has to win over all of them. What floats or is pressed keeps its own tint on top.
+ */
+body[data-style="macos"][data-scene="none"] .panel {
+  background: var(--flat-c) !important;
+  backdrop-filter: none !important;
+}
+
+/* The window around the panels: the same colour, slightly darker, so the panels stand on it. */
+body[data-style="macos"][data-scene="none"] {
+  background: color-mix(in srgb, var(--flat-c) 82%, #000) !important;
+}
+
+/* Nothing busy behind the words: no shadow to stand on (it would only smudge the colour), and small words light enough for it (4.5:1). */
+body[data-style="macos"][data-scene="none"] {
+  --muted: #bcc0c4;
+  --faint: #a2a6aa;
+}
+
+/* The other colours are only just dark enough for --muted, so the faintest words take its light too (3.4:1 otherwise). */
+body[data-style="macos"][data-scene="none"]:not([data-flat="graphite"]),
+body[data-style="macos"][data-dark][data-scene="none"]:not([data-flat="graphite"]) .settings-page {
+  --muted: #bcc0c4;
+  --faint: #bcc0c4;
+}
+
+body[data-style="macos"][data-scene="none"][data-backdrop] :is(.shell, .stage, .sidebar, .settings-page, .term-empty, .xterm-rows, .newtask-greeting) {
+  text-shadow: none;
+}
+
+/* ----------------------------- a new branch ------------------------------ */
+
+/* Nothing said yet: no title or words, just the prompt bar in the middle of the panel (the 52px makes up for the toolbar). */
+body[data-style="macos"] .chat.is-new-branch {
+  justify-content: center;
+}
+
+body[data-style="macos"] .chat.is-new-branch > .stage {
+  display: none;
+}
+
+body[data-style="macos"] .chat.is-new-branch > .foot {
+  position: relative;
+  margin-top: -52px;
+  padding-bottom: 0;
+}
+
+/* (Over the bar, without moving it off the centre.) */
+body[data-style="macos"] .chat.is-new-branch .foot-over {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+}
+
+body[data-style="macos"] .chat.is-new-branch :is(.foot-meta, .chat-banner) {
+  margin-bottom: 6px;
+}
+
+/* ------------------------------- the / menu ------------------------------- */
+
+body[data-style="macos"] .slash-pop {
+  padding: 5px;
+}
+
+body[data-style="macos"] .slash-name {
+  font-weight: 500;
+}
+
+/* The menu's row: only the name stands out, whichever row you're on, and no "chosen" dot. */
+body[data-style="macos"] .slash-item.is-on {
+  font-weight: 400;
+}
+
+body[data-style="macos"] .slash-item.is-on::after {
+  display: none;
+}

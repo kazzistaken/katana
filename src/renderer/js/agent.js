@@ -57,9 +57,8 @@ export function createAgent({ api, store }) {
   return {
     sync,
     /**
-     * You wrote or said something: resolves with { reply } or { error }.
-     * `kind` 'voice' for the live conversation; `log` false when it's
-     * already in the conversation (what you said, heard as you said it).
+     * You wrote something: resolves with { reply } or { error }.
+     * `log` false when it's already in the conversation.
      */
     ask(text, { kind = 'user', log = true } = {}) {
       const value = String(text || '').trim();

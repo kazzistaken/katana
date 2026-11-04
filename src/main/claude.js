@@ -14,7 +14,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { runArgs, killCommand } = require('./runargs');
+const { runArgs, killCommand, cmdLine } = require('./runargs');
 
 /* ------------------------- finding claude --------------------------- */
 
@@ -45,41 +45,101 @@ function cleanEnv(extra = {}) {
   return { ...env, ...extra };
 }
 
-/** Make a value safe to pass as a single quoted argument to the shell. */
-function quote(value) {
-  const clean = String(value ?? '')
-    .replace(/[\r\n]+/g, ' ')
-    .replace(/"/g, "'")
-    .trim();
-  return `"${clean}"`;
+/**
+ * What a `.cmd` wrapper (npm's shim) runs: "%dp0%\…\claude.exe" or, in older
+ * installs, node with "%dp0%\…\cli.js". { file, args } or null.
+ */
+function shimTarget(shim) {
+  let text;
+  try {
+    text = fs.readFileSync(shim, 'utf8');
+  } catch {
+    return null;
+  }
+  for (const match of text.matchAll(/"%~?dp0%?\\?([^"%]+?\.(exe|c?js))"/gi)) {
+    const target = path.join(path.dirname(shim), match[1]);
+    if (!fs.existsSync(target)) continue;
+    if (match[2].toLowerCase() === 'exe') return { file: target, args: [] };
+    const node = existsInPath('node');
+    if (node) return { file: node, args: [target] };
+  }
+  return null;
 }
 
 /**
  * Find the real Claude Code executable. npm installs a `.cmd` shim on Windows
- * that just forwards to a bundled `claude.exe`; launching that exe directly
- * skips cmd.exe, so arguments need no shell quoting.
+ * that just forwards to a bundled `claude.exe` (or node and its cli.js);
+ * launching that directly skips cmd.exe, so arguments need no shell quoting.
+ * Only a wrapper we can't see through is run by cmd.exe (`shell`), every
+ * argument escaped for it (runargs.js cmdLine). `args`: what goes first.
  */
 function resolveClaude() {
+  // A stress run (test runs only): scripts/fake-claude.cjs stands in, so nothing reaches Claude.
+  if (process.env.XODE2_FAKE_CLAUDE && process.env.XODE2_TEST) {
+    const node = existsInPath('node');
+    return node ? { file: node, args: [path.resolve(process.env.XODE2_FAKE_CLAUDE)], shell: false } : null;
+  }
   const found = existsInPath('claude');
   if (!found) return null;
   if (/\.(cmd|bat)$/i.test(found)) {
     const exe = path.join(path.dirname(found), 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
     if (fs.existsSync(exe)) return { file: exe, shell: false };
+    const target = shimTarget(found);
+    if (target) return { ...target, shell: false };
     return { file: found, shell: true };
   }
   return { file: found, shell: false };
 }
 
-/** Spawn `claude` headless with real argv (falls back to a quoted shell line). */
+/**
+ * One small question to Claude, the answer as text: no tools, no settings or
+ * hooks, no session left behind, and run outside any project so nothing there
+ * is read or counted. The prompt goes on stdin. Rejects if it fails or takes too long.
+ */
+function askQuick({ system, prompt, model = 'claude-haiku-5-5', timeoutMs = 45_000 }) {
+  const args = ['-p', '--model', model, '--output-format', 'text', '--no-session-persistence', '--setting-sources', '', '--strict-mcp-config', '--tools', '', '--system-prompt', system];
+  return new Promise((resolve, reject) => {
+    let proc;
+    try {
+      proc = spawnClaudeProcess(args, { cwd: require('node:os').tmpdir(), env: cleanEnv({ FORCE_COLOR: '0' }) });
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    let out = '';
+    let err = '';
+    const timer = setTimeout(() => {
+      proc.kill();
+      reject(new Error('Claude took too long.'));
+    }, timeoutMs);
+    proc.stdout.setEncoding('utf8');
+    proc.stderr.setEncoding('utf8');
+    proc.stdout.on('data', (chunk) => (out += chunk));
+    proc.stderr.on('data', (chunk) => (err = (err + chunk).slice(-400)));
+    proc.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    proc.on('close', (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve(out);
+      else reject(new Error(err.trim() || `Claude exited with ${code}`));
+    });
+    proc.stdin.on('error', () => {});
+    proc.stdin.end(prompt);
+  });
+}
+
+/** Spawn `claude` headless with real argv (a wrapper we can't see through: by cmd.exe, escaped for it). */
 function spawnClaudeProcess(args, { cwd, env }) {
   const bin = resolveClaude();
   if (!bin) throw new Error('Claude Code not found. Install it and sign in, then restart.');
   // Elsewhere than Windows each turn gets its own process group, so Stop can
   // end it together with everything it started.
   const options = { cwd, env, windowsHide: true, detached: process.platform !== 'win32' };
-  if (!bin.shell) return spawn(bin.file, args, options);
-  const line = [quote(bin.file), ...args.map((arg) => (/^[\w.:\\/=@,-]+$/.test(arg) ? arg : quote(arg)))];
-  return spawn(line.join(' '), { ...options, shell: true });
+  if (!bin.shell) return spawn(bin.file, [...(bin.args || []), ...args], options);
+  // (& | % ^ and quotes in an argument stay text: cmdLine escapes them.)
+  return spawn(process.env.ComSpec || 'cmd.exe', [cmdLine(bin.file, args)], { ...options, windowsVerbatimArguments: true });
 }
 
 /* ------------------------ stream-json parsing ------------------------ */
@@ -297,4 +357,4 @@ function cancelAll() {
   for (const runId of [...runs.keys()]) cancelRun(runId);
 }
 
-module.exports = { startRun, cancelRun, cancelAll, resolveClaude, existsInPath, pipeLines, parseClaudeLine, cleanEnv };
+module.exports = { startRun, cancelRun, cancelAll, askQuick, resolveClaude, shimTarget, existsInPath, pipeLines, parseClaudeLine, cleanEnv };

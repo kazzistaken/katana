@@ -40,7 +40,7 @@ const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { nativeImage } = require('electron');
 const w32 = require('./win32');
-const { planRun, planPage, runEnv } = require('./runplan');
+const { planPage, runEnv } = require('./runplan');
 const { mouseMessage, wheelMessages, keyMessages, parseCombo, pack } = require('./appinput');
 const { markedError, stderrError, crashError, lineSplitter } = require('./applog');
 
@@ -51,33 +51,20 @@ const DIALOG_CLASS = '#32770';
 // The longest side of a screenshot an agent gets (larger is scaled down; its clicks scaled back up).
 const SHOT_MAX = 1568;
 
-/** The app's Electron, if the folder (or one above it) has it installed. */
-function folderElectron(cwd) {
-  let dir = cwd;
-  for (let i = 0; i < 4 && dir; i += 1) {
-    const pkg = path.join(dir, 'node_modules', 'electron');
-    try {
-      const rel = fs.readFileSync(path.join(pkg, 'path.txt'), 'utf8').trim();
-      const exe = path.join(pkg, 'dist', rel);
-      if (fs.existsSync(exe)) return exe;
-    } catch {
-      /* not here */
-    }
-    const up = path.dirname(dir);
-    dir = up === dir ? '' : up;
-  }
-  return '';
-}
-
-function readPackage(cwd) {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
 const intersects = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+/**
+ * How soon to look at an app's windows again (ms). Quick only while a
+ * window may be coming: no window yet, or one just came or went (a splash,
+ * then the app). Soon after you use it (a popup, a dialog). Otherwise calm,
+ * calmer still when Katana's window is minimized or hidden.
+ */
+function pollDelay({ windows = 0, sinceStart = 0, sinceChange = Infinity, sinceUse = Infinity, unseen = false } = {}) {
+  if (!windows) return sinceStart < 15000 ? 100 : 300;
+  if (sinceChange < 3000) return 100;
+  if (sinceUse < 3000) return 200;
+  return unseen ? 2000 : 1000;
+}
 
 /**
  * Where a window waits off-screen: beside the display Katana is on, on a
@@ -108,25 +95,12 @@ function parking(displays, home, size, taken = []) {
   return walk({ x: left - size.width - gap, y: home.y }, { x: -(size.width + gap), y: 0 }) || { x: left - size.width - gap, y: home.y };
 }
 
-function createAppView({ send, mainWindow, screen, trusted, bundledElectron = '', exe = process.execPath, appPath = '', userDataDir = () => os.tmpdir(), log = () => {} }) {
+function createAppView({ send, mainWindow, screen, trusted, exe = process.execPath, appPath = '', userDataDir = () => os.tmpdir(), log = () => {} }) {
   /** @type {Map<string, any>} task id → run */
   const runs = new Map();
   // The last pane size: an app an agent starts while you look elsewhere still gets a sensible size.
   let lastPane = null;
   let pipes = 0;
-
-  /** The error hook, next to Katana's data (an app's Electron can't read it from inside this app's package). */
-  function hookFile() {
-    try {
-      const target = path.join(userDataDir(), 'apphook.cjs');
-      const code = fs.readFileSync(path.join(__dirname, 'apphook.cjs'), 'utf8');
-      if (!fs.existsSync(target) || fs.readFileSync(target, 'utf8') !== code) fs.writeFileSync(target, code);
-      return target;
-    } catch (error) {
-      log('[appview] hook', error.message);
-      return '';
-    }
-  }
 
   /** Quietly kept for the task (the window asks about them on your next message). */
   function logError(taskId, entry) {
@@ -216,30 +190,20 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
   const live = (run) => run && (run.status === 'starting' || run.status === 'running');
 
   /**
-   * Runs a task's app (`command`, else its package.json), or shows a web
-   * page (`page`). What's running already stays if it's the same thing;
-   * something else running there is stopped first.
+   * Shows a web page (`page`) in the browser: a page already there goes to it.
    */
-  async function start({ taskId, cwd, command = '', page = '' } = {}) {
+  async function start({ taskId, cwd, page = '' } = {}) {
     taskId = String(taskId || '');
     if (!taskId) return { error: 'Which task?' };
+    if (!page) return { error: 'Which page? Katana’s browser shows web pages (an HTML file).' };
     if (!w32.available) return { error: 'The app viewer needs Windows.' };
     if (!cwd || !fs.existsSync(cwd)) return { error: 'The task’s folder doesn’t exist.' };
     if (!trusted(cwd)) return { error: 'Apps only run in a trusted folder.' };
     const old = runs.get(taskId);
-    if (live(old)) {
-      if (page && old.plan.page) return navigate(old, page);
-      if (!page && !old.plan.page && (!command || command === old.command)) return state(old);
-      await stop(taskId);
-    }
+    if (live(old)) return navigate(old, page);
 
-    let plan;
-    if (page) {
-      if (!fs.existsSync(page)) return failed(taskId, `There’s no page at ${page}.`);
-      plan = planPage({ file: path.resolve(page), exe, appPath });
-    } else {
-      plan = planRun({ command, pkg: readPackage(cwd), electronExe: folderElectron(cwd), bundledElectron, hook: hookFile() });
-    }
+    if (!fs.existsSync(page)) return failed(taskId, `There’s no page at ${page}.`);
+    const plan = planPage({ file: path.resolve(page), exe, appPath });
     if (plan.error) return failed(taskId, plan.error);
 
     // Katana in itself, or a page: their own data, never yours (nor your Katana's daemon).
@@ -253,7 +217,6 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
     const run = {
       taskId,
       cwd,
-      command,
       plan,
       dataDir,
       child: null,
@@ -271,14 +234,13 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
       current: 0,
       pane: old?.pane || lastPane,
       popped: false,
-      poll: null,
+      due: 0, // when the shared poll looks at it next (pollAll)
       started: Date.now(),
       tree: new Set(),
       hadFocus: Boolean(mainWindow()?.isFocused()),
     };
     runs.set(taskId, run);
     output(run, `▸ ${plan.label}  (${cwd})\n`);
-    if (!plan.keepsPainting) output(run, '  Not started as an Electron app: if it stops drawing while hidden, use Pop out.\n');
 
     let child;
     try {
@@ -353,7 +315,7 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
 
   function ended(run, code, signal) {
     if (runs.get(run.taskId) !== run) return;
-    clearTimeout(run.poll);
+    unschedule(run);
     // The launcher (npm, a shell) can end while the app goes on: keep watching what it started.
     // Not for Katana in itself: what outlives it is its own daemon, which goes with it.
     const left = [...run.tree].filter((pid) => pid !== run.child.pid && alivePid(pid));
@@ -366,7 +328,7 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
   }
 
   function finish(run, code, signal) {
-    clearTimeout(run.poll);
+    unschedule(run);
     run.pipe?.close();
     // Ended by itself with a failure: a crash (stopping it isn't).
     if (!run.stopping) logError(run.taskId, crashError(code, signal, run.lastErr));
@@ -401,22 +363,104 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
 
   /* ------------------------------ windows ------------------------------ */
 
+  // One poll for every running app: one process snapshot and one walk over
+  // the windows each time (they're synchronous calls on this thread), and
+  // only as often as each app needs (pollDelay).
+  let pollTimer = null;
+  let pollAt = 0;
+  // When processes started, by pid and parent (a pid Windows reuses comes with another parent).
+  const born = new Map();
+  const bornOf = (pid, parents) => {
+    const key = `${pid}:${parents.get(pid)}`;
+    if (!born.has(key)) {
+      const at = w32.startedAt(pid);
+      if (!at) return 0; // asked again next time
+      born.set(key, at);
+    }
+    return born.get(key);
+  };
+
+  const watched = (run) => runs.get(run.taskId) === run && run.status !== 'exited' && run.status !== 'failed';
+
   function schedule(run, ms) {
-    clearTimeout(run.poll);
-    run.poll = setTimeout(() => tick(run), ms);
+    run.due = Date.now() + ms;
+    arm();
   }
 
-  function tick(run) {
-    if (runs.get(run.taskId) !== run || run.status === 'exited' || run.status === 'failed') return;
-    const root = run.child.pid;
-    const tree = w32.processTree(root);
-    for (const pid of run.orphans || []) for (const p of w32.processTree(pid)) tree.add(p);
+  function unschedule(run) {
+    run.due = 0;
+  }
+
+  /** The shared timer, set for whichever app is due first. */
+  function arm() {
+    let next = 0;
+    for (const run of runs.values()) if (run.due && watched(run) && (!next || run.due < next)) next = run.due;
+    if (!next) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+      pollAt = 0;
+      return;
+    }
+    if (pollTimer && pollAt <= next) return;
+    clearTimeout(pollTimer);
+    pollAt = next;
+    pollTimer = setTimeout(pollAll, Math.max(0, next - Date.now()));
+  }
+
+  function pollAll() {
+    pollTimer = null;
+    pollAt = 0;
+    const now = Date.now();
+    // Due now, or nearly: polled together.
+    const due = [...runs.values()].filter((run) => run.due && run.due <= now + 30 && watched(run));
+    if (due.length) {
+      const parents = w32.processParents();
+      for (const key of born.keys()) if (!parents.has(Number(key.split(':')[0]))) born.delete(key);
+      const startTime = (pid) => bornOf(pid, parents);
+      const trees = new Map();
+      const pids = new Set();
+      for (const run of due) {
+        unschedule(run);
+        const tree = w32.processTree(run.child.pid, { parents, startTime });
+        for (const pid of run.orphans || []) for (const p of w32.processTree(pid, { parents, startTime })) tree.add(p);
+        trees.set(run, tree);
+        for (const pid of tree) pids.add(pid);
+      }
+      const windows = w32.windowsOf(pids);
+      for (const run of due) {
+        try {
+          tick(run, trees.get(run), windows);
+        } catch (error) {
+          log('[appview] poll', error.message);
+          if (watched(run) && !run.due) schedule(run, 1000);
+        }
+      }
+    }
+    arm();
+  }
+
+  /** The main window minimized or hidden: no one is looking at the pane. */
+  function unseen() {
+    const win = mainWindow();
+    return !win || win.isDestroyed() || win.isMinimized() || !win.isVisible();
+  }
+
+  /** You (or an agent) used the app: a popup or dialog may follow, so look again soon. */
+  function nudge(run) {
+    run.usedAt = Date.now();
+    if (watched(run) && (!run.due || run.due - run.usedAt > 200)) schedule(run, 200);
+  }
+
+  function tick(run, tree, all) {
+    if (!watched(run)) return;
     run.tree = tree;
     if (run.orphans && ![...tree].some(alivePid)) return finish(run, run.child.exitCode, null);
 
     const seen = new Set();
     let changed = false;
-    for (const found of w32.windowsOf(tree)) {
+    let came = false;
+    for (const found of all) {
+      if (!tree.has(found.pid)) continue;
       seen.add(found.hwnd);
       if (found.className === MENU_CLASS) continue;
       const known = run.windows.get(found.hwnd);
@@ -426,20 +470,32 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
       }
       adopt(run, found);
       changed = true;
+      came = true;
     }
     for (const hwnd of [...run.windows.keys()]) {
       if (!seen.has(hwnd)) {
         forget(run, hwnd);
         changed = true;
+        came = true;
       }
     }
+    if (came) run.windowsAt = Date.now();
     if (run.status === 'starting' && run.order.length) {
       run.status = 'running';
       changed = true;
     }
     if (changed) publish(run);
-    // Quick while it's starting (a window waits on screen until it's moved), then calmer.
-    schedule(run, Date.now() - run.started < 15000 ? 100 : 300);
+    const now = Date.now();
+    schedule(
+      run,
+      pollDelay({
+        windows: run.order.length,
+        sinceStart: now - run.started,
+        sinceChange: now - (run.windowsAt || 0),
+        sinceUse: now - (run.usedAt || 0),
+        unseen: unseen(),
+      })
+    );
   }
 
   function topOf(run, found) {
@@ -613,6 +669,7 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
     }
     if (run.popped && run.current) w32.raise(run.current);
     else refocus();
+    nudge(run);
     publish(run);
     return state(run);
   }
@@ -637,6 +694,7 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
   }
 
   function deliver(run, hwnd, event) {
+    if (event.type !== 'move') nudge(run);
     if (event.type === 'move' || event.type === 'down' || event.type === 'up') {
       const message = mouseMessage(event);
       if (!message) return;
@@ -683,7 +741,8 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
    */
   function killTree(run, wait = false) {
     const pids = new Set([run.child?.pid, ...run.tree, ...(run.orphans || [])].filter(Boolean));
-    for (const pid of [...pids]) if (alivePid(pid)) for (const p of w32.processTree(pid)) pids.add(p);
+    const parents = w32.processParents();
+    for (const pid of [...pids]) if (alivePid(pid)) for (const p of w32.processTree(pid, { parents })) pids.add(p);
     pids.delete(process.pid);
     const kill = wait ? spawnSync : spawn;
     for (const pid of pids) {
@@ -734,7 +793,7 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
     if (!run) return;
     run.stopping = true;
     if (run.status === 'starting' || run.status === 'running') killTree(run);
-    clearTimeout(run.poll);
+    unschedule(run);
     run.pipe?.close();
     cleanData(run);
     runs.delete(run.taskId);
@@ -744,11 +803,13 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
   function killAll() {
     for (const run of runs.values()) {
       run.stopping = true;
-      clearTimeout(run.poll);
+      unschedule(run);
       if (run.status === 'starting' || run.status === 'running') killTree(run, true);
+      run.pipe?.close();
       if (run.dataDir) fs.rmSync(run.dataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
     }
     runs.clear();
+    arm();
   }
 
   /* ------------------------------ agents ------------------------------- */
@@ -902,4 +963,4 @@ function createAppView({ send, mainWindow, screen, trusted, bundledElectron = ''
   };
 }
 
-module.exports = { createAppView, parking, folderElectron };
+module.exports = { createAppView, parking, pollDelay };

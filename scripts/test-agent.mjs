@@ -65,8 +65,11 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   assert.equal(runs[0].model, 'claude-opus-5-5');
 
   onEvent({ type: 'init', sessionId: 'sess-1' });
-  onEvent({ type: 'tool', tool: 'mcp__katana__new_task' });
+  onEvent({ type: 'tool', id: 'k1', tool: 'mcp__katana__new_task' });
   assert.equal(agent.status().activity, 'new task');
+  // Its result back: she's thinking again (no activity), so her view says Thinking, not Working.
+  onEvent({ type: 'tool-result', id: 'k1', text: 'task_2' });
+  assert.equal(agent.status().activity, '');
   onEvent({ type: 'assistant', text: 'Let me start it.' });
   onEvent({ type: 'result', ok: true, result: 'Started it.' });
   assert.equal(agent.status().busy, false);

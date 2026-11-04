@@ -5,7 +5,6 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { wav, RATE } from '../src/renderer/js/mic.js';
-import { pieces } from '../src/renderer/js/talk.js';
 
 const require = createRequire(import.meta.url);
 
@@ -23,15 +22,6 @@ const require = createRequire(import.meta.url);
   assert.equal(clip.readInt16LE(50), 0x7fff);
 }
 
-// Her reply in pieces to say in turn: a short first one (it decides how soon she starts), then the rest.
-assert.deepEqual(pieces('Started it. The cart fix is running on its own worktree, and I will tell you when it is done. Want me to open it?'), [
-  'Started it.',
-  'The cart fix is running on its own worktree, and I will tell you when it is done. Want me to open it?',
-]);
-assert.deepEqual(pieces('On it.'), ['On it.']);
-assert.deepEqual(pieces('No full stop at the end'), ['No full stop at the end']);
-assert.deepEqual(pieces(''), []);
-
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'katana-or-'));
 // Sealing, as Windows would do it (here: reversible and visibly not plain).
 const safeStorage = { isEncryptionAvailable: () => true, encryptString: (s) => Buffer.from([...s].reverse().join('')), decryptString: (b) => [...b.toString()].reverse().join('') };
@@ -48,7 +38,7 @@ const safeStorage = { isEncryptionAvailable: () => true, encryptString: (s) => B
   assert.equal(keys.has(), false);
 }
 
-// Hearing and speaking, against a stand-in OpenRouter.
+// Hearing, against a stand-in OpenRouter.
 {
   const seen = [];
   const server = http.createServer((request, response) => {
@@ -64,18 +54,8 @@ const safeStorage = { isEncryptionAvailable: () => true, encryptString: (s) => B
         response.writeHead(200, { 'Content-Type': 'application/json' });
         return response.end(JSON.stringify({ text: ' Start a task to add tests. ', usage: { seconds: 2 } }));
       }
-      // ElevenLabs refused this one: Gemini's raw PCM (its rate in the type) instead.
-      const sent = JSON.parse(body);
-      if (sent.model.startsWith('elevenlabs/') && sent.input.includes('fall back')) {
-        response.writeHead(503, { 'Content-Type': 'application/json' });
-        return response.end(JSON.stringify({ error: { message: 'busy' } }));
-      }
-      if (sent.model.startsWith('google/')) {
-        response.writeHead(200, { 'Content-Type': 'audio/pcm;rate=24000;channels=1' });
-        return response.end(Buffer.from([1, 0, 2, 0]));
-      }
-      response.writeHead(200, { 'Content-Type': 'audio/mpeg' });
-      return response.end(Buffer.from([0xff, 0xfb, 0x90, 0x44]));
+      response.writeHead(404);
+      return response.end();
     });
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -90,28 +70,6 @@ const safeStorage = { isEncryptionAvailable: () => true, encryptString: (s) => B
   assert.equal(asked.auth, 'Bearer sk-or-good');
   assert.equal(asked.body.model, 'openai/gpt-4o-transcribe');
   assert.deepEqual(asked.body.input_audio, { data: 'UklGRg==', format: 'wav' });
-
-  // Her voice: ElevenLabs, the voice by name.
-  const speech = await router.speak('The cart fix is in.', 'Matilda');
-  assert.equal(speech.type, 'audio/mpeg');
-  assert.deepEqual([...Buffer.from(speech.audio, 'base64')], [0xff, 0xfb, 0x90, 0x44]);
-  const said = seen.at(-1);
-  assert.equal(said.url, '/api/v1/audio/speech');
-  assert.equal(said.body.model, 'elevenlabs/eleven-flash-v2.5');
-  assert.equal(said.body.voice, 'XrExE9yKIg1WjnnlVkGX');
-  assert.equal(said.body.response_format, 'mp3');
-
-  // ElevenLabs fails: Gemini's voice, its PCM wrapped as a WAV at its own rate.
-  const fallback = await router.speak('Please fall back.', 'Matilda');
-  assert.equal(seen.at(-1).body.model, 'google/gemini-3.8-flash-tts');
-  assert.equal(fallback.type, 'audio/wav');
-  const played = Buffer.from(fallback.audio, 'base64');
-  assert.equal(played.toString('ascii', 0, 4), 'RIFF');
-  assert.equal(played.readUInt32LE(24), 24000);
-  assert.deepEqual([...played.subarray(44)], [1, 0, 2, 0]);
-  assert.equal(said.body.input, 'The cart fix is in.');
-  assert.equal((await router.speak('x', 'not-a-voice')).audio !== undefined, true);
-  assert.equal(seen.at(-1).body.voice, '21m00Tcm4TlvDq8ikWAM', 'an unknown voice is Rachel');
 
   router.setKey('sk-or-bad');
   assert.match((await router.transcribe('UklGRg==')).error, /didn’t accept the key/);

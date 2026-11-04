@@ -20,9 +20,11 @@ const path = require('node:path');
 
 // What a window may ask of the daemon.
 const METHODS = new Set([
-  'start', 'say', 'write', 'resize', 'stop', 'answered', 'kill', 'tail', 'running', 'quiet', 'history', 'snapshot', 'killAll', 'status', 'shutdown',
+  'start', 'say', 'write', 'resize', 'stop', 'answered', 'kill', 'tail', 'watch', 'unwatch', 'running', 'quiet', 'history', 'snapshot', 'killAll', 'status', 'shutdown',
   // Katana, and a window answering one of her tool calls.
   'agentAsk', 'agentStop', 'agentSay', 'agentRemind', 'agentWatch', 'agentDrop', 'agentState', 'toolResult', 'screen',
+  // Whether the window's page can take her tool calls now (it loads, reloads, crashes).
+  'windowReady',
   // Hierarchy mode's teams.
   'teamSnapshot', 'teamMode', 'teamStop',
 ]);
@@ -37,53 +39,81 @@ function pipePath(userDataDir) {
 
 const infoFile = (userDataDir) => path.join(userDataDir, 'katanad.json');
 
-// The daemon's own code: when any of it changes on disk, a running daemon is out of date.
-const CODE = [
+// The daemon's own code: when any of it changes on disk, a running daemon is
+// out of date. Found by following what katanad.js loads (require, import,
+// import()), and the files it copies out or loads by a name it builds: the
+// window modules headless.js imports (and everything those import).
+const SRC = path.join(__dirname, '..');
+const ROOTS = [
   path.join(__dirname, 'katanad.js'),
-  path.join(__dirname, 'core.js'),
-  path.join(__dirname, 'taskstate.js'),
-  path.join(__dirname, 'protocol.js'),
-  path.join(__dirname, 'agent.js'),
-  path.join(__dirname, 'toolport.js'),
-  path.join(__dirname, 'headless.js'),
-  path.join(__dirname, 'notify.js'),
-  path.join(__dirname, 'team.js'),
-  path.join(__dirname, '..', 'main', 'apptooldefs.js'),
-  path.join(__dirname, '..', 'main', 'mcp-app.cjs'),
-  path.join(__dirname, '..', 'main', 'worktree.js'),
-  path.join(__dirname, '..', 'main', 'tasks.js'),
-  path.join(__dirname, '..', 'main', 'runargs.js'),
-  path.join(__dirname, '..', 'main', 'claude.js'),
-  path.join(__dirname, '..', 'main', 'shells.js'),
-  path.join(__dirname, '..', 'main', 'statefile.js'),
-  path.join(__dirname, '..', 'main', 'hook.cjs'),
-  // The window's own code headless.js runs.
-  path.join(__dirname, '..', 'renderer', 'js', 'store.js'),
-  path.join(__dirname, '..', 'renderer', 'js', 'apptools.js'),
-  path.join(__dirname, '..', 'renderer', 'js', 'transcript.js'),
+  path.join(SRC, 'main', 'hook.cjs'),
+  path.join(SRC, 'main', 'mcp-app.cjs'),
 ];
+// headless.js names them in a list ('store.js', …) under renderer/js.
+const HEADLESS_LIST = /\[\s*((?:'[\w.-]+\.js'\s*,?\s*)+)\]\s*\.map\(\s*\(name\)\s*=>\s*import\(/;
+const SPECIFIER = /(?:\brequire\(\s*|\bimport\(\s*|\bfrom\s+|^\s*import\s+)['"](\.{1,2}\/[^'"]+)['"]/gm;
+
+function readText(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+function resolveLocal(from, spec) {
+  const base = path.resolve(path.dirname(from), spec);
+  for (const file of [base, `${base}.js`, `${base}.cjs`, `${base}.mjs`, path.join(base, 'index.js')]) {
+    try {
+      if (fs.statSync(file).isFile()) return file;
+    } catch {
+      /* next */
+    }
+  }
+  return '';
+}
+
+let codeList = null;
+/** Every file of the daemon's code (found once per process). */
+function codeFiles() {
+  if (codeList) return codeList;
+  const seen = new Set();
+  const queue = [...ROOTS];
+  const headless = readText(path.join(__dirname, 'headless.js')).match(HEADLESS_LIST);
+  // (Should that list ever read differently: the ones it has always had.)
+  const names = headless ? [...headless[1].matchAll(/'([\w.-]+\.js)'/g)].map((m) => m[1]) : ['store.js', 'apptools.js', 'transcript.js'];
+  for (const name of names) queue.push(path.join(SRC, 'renderer', 'js', name));
+  while (queue.length) {
+    const file = queue.shift();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    for (const [, spec] of readText(file).matchAll(SPECIFIER)) {
+      const found = resolveLocal(file, spec);
+      // (Only ours: node_modules don't change under a running daemon.)
+      if (found && found.startsWith(SRC + path.sep)) queue.push(found);
+    }
+  }
+  codeList = [...seen].sort();
+  return codeList;
+}
 
 function codeVersion() {
-  const parts = CODE.map((file) => {
-    try {
-      return fs.readFileSync(file, 'utf8');
-    } catch {
-      return '';
-    }
-  });
+  const parts = codeFiles().map((file) => `${path.relative(SRC, file)}\0${readText(file)}`);
   return hash(parts.join('\0')).slice(0, 16);
 }
 
-/** Read whole lines off a socket, each a JSON message. */
+/** Read whole lines off a socket, each a JSON message (only what just came is searched for a line's end). */
 function onMessages(socket, handle) {
-  let buffer = '';
+  let parts = []; // the start of a line not ended yet
   socket.setEncoding('utf8');
   socket.on('data', (chunk) => {
-    buffer += chunk;
+    let from = 0;
     let index;
-    while ((index = buffer.indexOf('\n')) !== -1) {
-      const line = buffer.slice(0, index);
-      buffer = buffer.slice(index + 1);
+    while ((index = chunk.indexOf('\n', from)) !== -1) {
+      parts.push(chunk.slice(from, index));
+      from = index + 1;
+      const line = parts.length === 1 ? parts[0] : parts.join('');
+      parts = [];
       if (!line.trim()) continue;
       let message;
       try {
@@ -93,6 +123,7 @@ function onMessages(socket, handle) {
       }
       handle(message);
     }
+    if (from < chunk.length) parts.push(chunk.slice(from));
   });
 }
 
@@ -100,4 +131,4 @@ const sendLine = (socket, message) => {
   if (!socket.destroyed) socket.write(`${JSON.stringify(message)}\n`);
 };
 
-module.exports = { METHODS, pipePath, infoFile, codeVersion, onMessages, sendLine };
+module.exports = { METHODS, pipePath, infoFile, codeVersion, codeFiles, onMessages, sendLine };

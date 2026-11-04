@@ -10,6 +10,8 @@
  * call(method, ...params) answers; notify() sends and forgets. The daemon's
  * events go to onEvent(channel, payload); onEvent('daemon:lost') when the
  * line drops (it crashed or was stopped), and the next call reconnects.
+ * Terminal output (task:data) comes only for the tasks watched (watch(id),
+ * a terminal open on it), asked again on every new line to the daemon.
  *
  * In test runs (inProcess) the same core runs inside the app instead.
  */
@@ -33,6 +35,7 @@ function createDaemonClient({ userDataDir, onEvent, log = () => {} }) {
   let status = null;
   let nextId = 0;
   const pending = new Map();
+  const watched = new Set(); // tasks with a terminal open: their output comes
 
   function readInfo() {
     try {
@@ -76,7 +79,11 @@ function createDaemonClient({ userDataDir, onEvent, log = () => {} }) {
           onEvent('daemon:lost', {});
         });
         socket = line;
-        request('hello', { token: info.token, role: 'window' }).then(resolve, (error) => {
+        request('hello', { token: info.token, role: 'window', watch: true }).then((hello) => {
+          // A new line (a restarted daemon, a new one): what was watched, again.
+          for (const id of watched) sendLine(line, { method: 'watch', params: [id] });
+          resolve(hello);
+        }, (error) => {
           socket = null;
           fail(error);
         });
@@ -173,6 +180,16 @@ function createDaemonClient({ userDataDir, onEvent, log = () => {} }) {
       if (socket && status) sendLine(socket, { method, params });
       else connect().then(() => socket && sendLine(socket, { method, params }), () => {});
     },
+    /** A terminal opened on a task: its output comes from now on; what it printed so far. */
+    async watch(id) {
+      watched.add(id);
+      await connect();
+      return request('watch', id);
+    },
+    unwatch(id) {
+      watched.delete(id);
+      if (socket && status) sendLine(socket, { method: 'unwatch', params: [id] });
+    },
     /** Whether the running daemon is behind the code on disk (it updates once idle). */
     stale: () => Boolean(status && status.version !== codeVersion()),
     close() {
@@ -202,6 +219,9 @@ function inProcess({ userDataDir, onEvent, block = true }) {
     connect: async () => status(),
     call: async (method, ...params) => handlers[method](...params),
     notify: (method, ...params) => handlers[method](...params),
+    // (In-process, every task's output comes: nothing to choose.)
+    watch: async (id) => handlers.watch(id),
+    unwatch: () => {},
     stale: () => false,
     close: () => core.close(),
   };

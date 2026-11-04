@@ -44,6 +44,15 @@ const { runArgs, taskCommand, runGuard } = require('../src/main/runargs.js');
   const again = taskCommand({ kind: 'claude', sessionId: 's1', resume: true, bypass: false }, found);
   assert.equal(again.args[again.args.indexOf('--resume') + 1], 's1');
   assert.ok(!again.args.includes('bypassPermissions'));
+  // A branch: its first start copies the other session's conversation as its own new id; later ones resume it.
+  const branch = taskCommand({ kind: 'claude', sessionId: 's2', forkFrom: 's1', prompt: 'now the tests' }, found);
+  assert.equal(branch.args[branch.args.indexOf('--resume') + 1], 's1');
+  assert.ok(branch.args.includes('--fork-session'));
+  assert.equal(branch.args[branch.args.indexOf('--session-id') + 1], 's2');
+  assert.equal(branch.args.at(-1), 'now the tests');
+  const branchAgain = taskCommand({ kind: 'claude', sessionId: 's2', forkFrom: 's1', resume: true }, found);
+  assert.equal(branchAgain.args[branchAgain.args.indexOf('--resume') + 1], 's2');
+  assert.ok(!branchAgain.args.includes('--fork-session') && !branchAgain.args.includes('--session-id'));
   // Every model gets the 1M context window, new or resumed, Haiku too.
   const modelOf = (r) => r.args[r.args.indexOf('--model') + 1];
   assert.equal(modelOf(taskCommand({ kind: 'claude', sessionId: 's1', model: 'claude-opus-5-5' }, found)), 'claude-opus-5-5[1m]');
@@ -51,6 +60,28 @@ const { runArgs, taskCommand, runGuard } = require('../src/main/runargs.js');
   assert.equal(modelOf(taskCommand({ kind: 'claude', sessionId: 's1', model: 'opus[1m]' }, found)), 'opus[1m]');
   assert.equal(modelOf(taskCommand({ kind: 'claude', sessionId: 's1', model: 'claude-haiku-5-5' }, found)), 'claude-haiku-5-5[1m]');
   assert.match(taskCommand({ kind: 'codex', prompt: 'x' }, found).error, /Codex/);
+  // a Codex task: its model and effort, the viewer's server and what it's told, all as -c flags; the message after --
+  const withCodex = { ...found, codex: { file: 'C:/codex.exe', env: { CODEX_MANAGED_BY_NPM: '1' } } };
+  const servers = { 'katana-viewer': { type: 'stdio', command: 'C:\\node\\node.exe', args: ['C:\\data\\mcp-app.cjs'], env: { KATANA_TOOLS_URL: 'http://127.0.0.1:1', KATANA_VIEW_TOKEN: 't"k' } } };
+  const codex = taskCommand({ kind: 'codex', model: 'gpt-6-luna', effort: 'high', prompt: '-start with a dash', mcpServers: servers }, withCodex);
+  assert.equal(codex.file, 'C:/codex.exe');
+  assert.deepEqual(codex.env, { CODEX_MANAGED_BY_NPM: '1' });
+  assert.ok(codex.args.includes('--dangerously-bypass-approvals-and-sandbox'));
+  assert.equal(codex.args[codex.args.indexOf('-m') + 1], 'gpt-6-luna');
+  const flags = codex.args.filter((_a, i) => codex.args[i - 1] === '-c');
+  assert.ok(flags.includes('model_reasoning_effort="high"'));
+  assert.ok(flags.includes('mcp_servers.katana-viewer.command="C:\\\\node\\\\node.exe"'));
+  assert.ok(flags.includes('mcp_servers.katana-viewer.args=["C:\\\\data\\\\mcp-app.cjs"]'));
+  assert.ok(flags.includes('mcp_servers.katana-viewer.env={KATANA_TOOLS_URL="http://127.0.0.1:1", KATANA_VIEW_TOKEN="t\\"k"}'));
+  assert.ok(flags.some((f) => f.startsWith('developer_instructions="') && f.includes('katana-viewer MCP tools')));
+  assert.deepEqual(codex.args.slice(-2), ['--', '-start with a dash']);
+  // resumed by its own session id; bypass off: Codex asks in its terminal; no viewer: nothing told
+  const resumed = taskCommand({ kind: 'codex', sessionId: '01a1-x', resume: true, bypass: false, prompt: 'again' }, withCodex);
+  assert.deepEqual(resumed.args.slice(0, 2), ['resume', '01a1-x']);
+  assert.ok(!resumed.args.includes('--dangerously-bypass-approvals-and-sandbox'));
+  assert.ok(!resumed.args.some((a) => a.startsWith('developer_instructions')));
+  // "resume" with no id yet (it never got going): a new session
+  assert.equal(taskCommand({ kind: 'codex', resume: true }, withCodex).args[0], '--dangerously-bypass-approvals-and-sandbox');
   assert.deepEqual(taskCommand({ kind: 'shell' }, found), { file: 'pwsh.exe', args: ['-NoLogo'] });
   assert.match(taskCommand({ kind: 'claude' }, { ...found, claude: null }).error, /Claude Code not found/);
 }
@@ -133,40 +164,52 @@ assert.match(runGuard({ role: 'worker', cwd: 'code\\shop' }, ['C:\\code\\shop'])
 }
 
 {
-  // sub-agents mode: the task's own session gets its sub-agents (per session, --agents JSON) and the routing note
-  const { SUBAGENTS, subagentDefs } = require('../src/main/runargs.js');
+  // sub-agents mode: an Opus lead (whatever model the task had) that picks its sub-agents (per session, --agents JSON), and its note
+  const { SUBAGENTS, SUBAGENTS_LEAD, subagentDefs } = require('../src/main/runargs.js');
   const found = { claude: { file: 'C:/claude.exe' } };
   const args = taskCommand({ kind: 'claude', mode: 'subagents', sessionId: 's1', model: 'claude-sonnet-5-5', prompt: 'fix the header', settingsFile: 'h.json', mcpConfig: 'C:/u/viewer/t1.json' }, found).args;
+  assert.equal(SUBAGENTS_LEAD, 'claude-opus-5-5');
+  assert.equal(args[args.indexOf('--model') + 1], 'claude-opus-5-5[1m]', 'the lead is Opus, not the task model');
   const agents = JSON.parse(args[args.indexOf('--agents') + 1]);
+  // three to pick from, each on its model, with the 1M context window
   assert.deepEqual(Object.keys(agents).sort(), ['builder', 'deep', 'quick']);
-  // each on the model that fits, with the 1M context window
+  assert.equal(agents.quick.model, 'claude-haiku-5-5[1m]');
   assert.equal(agents.builder.model, 'claude-sonnet-5-5[1m]');
   assert.equal(agents.deep.model, 'claude-opus-5-5[1m]');
-  assert.equal(agents.quick.model, 'claude-haiku-5-5[1m]');
   assert.deepEqual(subagentDefs(), agents);
   for (const agent of Object.values(agents)) {
     assert.ok(agent.description.length > 40 && agent.prompt.length > 100);
     assert.ok(!('tools' in agent)); // they keep every tool the session has (the viewer's too)
   }
-  // the descriptions route: Sonnet is the default, Opus only hard problems, Haiku only tiny fixes
-  assert.match(agents.builder.description, /default/i);
-  assert.match(agents.deep.description, /hard/i);
-  assert.match(agents.quick.description, /spacing|typo/i);
-  // the main session: told both the viewer and how to route, preferring builder; runs on its own model
+  // what each is for: Haiku super simple fixes, Sonnet hard work and logic, Opus complicated systems and hard bugs
+  assert.match(agents.quick.description, /super simple/i);
+  assert.match(agents.builder.description, /logic/i);
+  assert.match(agents.deep.description, /complicated systems[\s\S]*hard bugs/i);
+  // the lead: told the viewer and how to pick (every change to a sub-agent)
   const told = args[args.indexOf('--append-system-prompt') + 1];
   assert.match(told, /app_screenshot[\s\S]*Sub-agents mode/);
-  assert.match(told, /builder \(Sonnet\)[\s\S]*deep \(Opus\)[\s\S]*quick \(Haiku\)[\s\S]*When unsure, pick builder/);
-  assert.equal(args[args.indexOf('--model') + 1], 'claude-sonnet-5-5[1m]');
+  assert.match(told, /quick \(Haiku\)[\s\S]*builder \(Sonnet\)[\s\S]*deep \(Opus\)/);
+  assert.match(told, /Don't edit files yourself/);
+  // Claude Code (2.1.314) sends an interactive session's sub-agents to the background, so the lead's
+  // turn ended while they still worked: its session runs without background tasks, so they run in it
+  const command = taskCommand({ kind: 'claude', mode: 'subagents', sessionId: 's1' }, found);
+  assert.deepEqual(command.env, { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' });
+  assert.equal(taskCommand({ kind: 'claude', sessionId: 's1' }, found).env, undefined, 'other sessions keep them');
   assert.equal(args.at(-1), 'fix the header');
-  // resumed in sub-agents mode (a switch from single): the same
-  assert.ok(taskCommand({ kind: 'claude', mode: 'subagents', sessionId: 's1', resume: true }, found).args.includes('--agents'));
-  // other modes and roles: none of it
-  assert.ok(!taskCommand({ kind: 'claude', sessionId: 's1', prompt: 'x' }, found).args.includes('--agents'));
+  // resumed in sub-agents mode (a switch from single): the same, Opus too
+  const resumed = taskCommand({ kind: 'claude', mode: 'subagents', sessionId: 's1', resume: true, model: 'claude-haiku-5-5' }, found).args;
+  assert.ok(resumed.includes('--agents'));
+  assert.equal(resumed[resumed.indexOf('--model') + 1], 'claude-opus-5-5[1m]');
+  // other modes and roles: none of it, and their own model
+  const single = taskCommand({ kind: 'claude', sessionId: 's1', prompt: 'x', model: 'claude-sonnet-5-5' }, found).args;
+  assert.ok(!single.includes('--agents'));
+  assert.equal(single[single.indexOf('--model') + 1], 'claude-sonnet-5-5[1m]');
   assert.ok(!taskCommand({ kind: 'claude', mode: 'hierarchy', role: 'leader', sessionId: 's1' }, found).args.includes('--agents'));
   assert.ok(!taskCommand({ kind: 'claude', mode: 'subagents', role: 'worker', sessionId: 's1' }, found).args.includes('--agents'));
-  // the chat view's table of sub-agent models (transcript.js) matches
-  const { SUBAGENT_MODELS } = await import('../src/renderer/js/transcript.js');
+  // the chat view's copy (transcript.js) matches
+  const { SUBAGENT_MODELS, SUBAGENTS_LEAD: shownLead } = await import('../src/renderer/js/transcript.js');
   assert.deepEqual(SUBAGENT_MODELS, Object.fromEntries(Object.entries(SUBAGENTS).map(([name, agent]) => [name, agent.model])));
+  assert.equal(shownLead, SUBAGENTS_LEAD);
 }
 
 console.log('runargs ok');

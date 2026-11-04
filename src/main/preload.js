@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('api', {
   state: {
     load: () => ipcRenderer.invoke('state:load'),
     save: (state) => ipcRenderer.invoke('state:save', state),
+    // state.json unreadable: start fresh (the bad file is kept beside it, renamed).
+    reset: () => ipcRenderer.invoke('state:reset'),
   },
   folder: {
     pick: () => ipcRenderer.invoke('folder:pick'),
@@ -33,12 +35,24 @@ contextBridge.exposeInMainWorld('api', {
     open: (file) => ipcRenderer.invoke('file:open', file),
     read: (file) => ipcRenderer.invoke('file:read', file),
     reveal: (file) => ipcRenderer.invoke('file:reveal', file),
+    save: (file) => ipcRenderer.invoke('file:save', file),
+    saveText: (name, text) => ipcRenderer.invoke('file:saveText', { name, text }),
+    copy: (file) => ipcRenderer.invoke('file:copy', file),
     watch: (file) => ipcRenderer.invoke('file:watch', file),
     onChanged: (callback) => subscribe('file:changed', callback),
   },
-  // The app viewer: your app run from a task's folder, live in the pane (main appview.js).
+  image: {
+    save: (type, bytes) => ipcRenderer.invoke('image:save', { type, bytes }),
+  },
+  // Your own backgrounds: pick a picture (copied into the app's data), or remove one.
+  background: {
+    add: () => ipcRenderer.invoke('background:add'),
+    save: (name, type, bytes) => ipcRenderer.invoke('background:save', { name, type, bytes }),
+    remove: (file) => ipcRenderer.invoke('background:remove', file),
+  },
+  // The browser: a web page from a task's folder, live in the pane (main appview.js).
   appview: {
-    start: (taskId, cwd, command, page) => ipcRenderer.invoke('app:start', { taskId, cwd, command, page }),
+    start: (taskId, cwd, page) => ipcRenderer.invoke('app:start', { taskId, cwd, page }),
     reload: (taskId) => ipcRenderer.invoke('app:reload', taskId),
     screenshot: (taskId) => ipcRenderer.invoke('app:screenshot', taskId),
     click: (taskId, options) => ipcRenderer.invoke('app:click', { taskId, ...options }),
@@ -66,6 +80,9 @@ contextBridge.exposeInMainWorld('api', {
     planUsage: () => ipcRenderer.invoke('sys:plan-usage'),
     openAtLogin: (on) => ipcRenderer.invoke('app:login', on),
   },
+  commands: {
+    list: (cwd) => ipcRenderer.invoke('commands:list', cwd),
+  },
   voice: {
     start: () => ipcRenderer.invoke('voice:start'),
     stop: () => ipcRenderer.invoke('voice:stop'),
@@ -74,16 +91,18 @@ contextBridge.exposeInMainWorld('api', {
     commit: () => ipcRenderer.send('voice:commit'),
     // OpenRouter dictation: a phrase (base64 WAV) as { text } or { error }.
     clip: (wav) => ipcRenderer.invoke('voice:clip', wav),
+    // Canary dictation (on this PC): the same.
+    canary: (wav) => ipcRenderer.invoke('voice:canary', wav),
     onError: (callback) => subscribe('voice:error', callback),
     onText: (callback) => subscribe('voice:text', callback),
     onPartial: (callback) => subscribe('voice:partial', callback),
+    onLive: (callback) => subscribe('voice:live', callback),
     onState: (callback) => subscribe('voice:state', callback),
   },
-  // GPT-Live, Katana's voice: main holds the key and makes the session.
-  live: {
-    hasKey: () => ipcRenderer.invoke('live:has-key'),
-    setKey: (key) => ipcRenderer.invoke('live:set-key', key),
-    start: (options) => ipcRenderer.invoke('live:start', options),
+  // The OpenAI key, for dictation: main holds it; the window only learns whether there is one.
+  openai: {
+    hasKey: () => ipcRenderer.invoke('openai:has-key'),
+    setKey: (key) => ipcRenderer.invoke('openai:set-key', key),
   },
   // Katana, who lives in katanad: what she says, her reminders and checks, whether she's busy.
   agent: {
@@ -101,23 +120,17 @@ contextBridge.exposeInMainWorld('api', {
     onAlert: (callback) => subscribe('alert', callback),
     screen: (shown) => ipcRenderer.send('agent:screen', shown),
   },
-  // OpenRouter: its key (set, or not), and Katana's words as speech ({ audio, type } or { error }).
+  // OpenRouter, for dictation: its key (set, or not).
   openrouter: {
     hasKey: () => ipcRenderer.invoke('openrouter:has-key'),
     setKey: (key) => ipcRenderer.invoke('openrouter:set-key', key),
-  },
-  // ElevenLabs (optional): its key; with one, her speech comes with when each character is said ({ audio, type, alignment }).
-  elevenlabs: {
-    hasKey: () => ipcRenderer.invoke('elevenlabs:has-key'),
-    setKey: (key) => ipcRenderer.invoke('elevenlabs:set-key', key),
-  },
-  speech: {
-    say: (text, voice) => ipcRenderer.invoke('speech:say', { text, voice }),
   },
   // Katana's tools: a call from her Claude turn, carried out here.
   tools: {
     onCall: (callback) => subscribe('tools:call', callback),
     result: (callId, result, error) => ipcRenderer.send('tools:result', { callId, result, error }),
+    // The page has its state and can take her calls now.
+    ready: () => ipcRenderer.send('tools:ready'),
   },
   shells: {
     list: () => ipcRenderer.invoke('shells:list'),
@@ -131,14 +144,18 @@ contextBridge.exposeInMainWorld('api', {
     answered: (id) => ipcRenderer.invoke('task:answered', id),
     kill: (id) => ipcRenderer.invoke('task:kill', id),
     tail: (id) => ipcRenderer.invoke('task:tail', id),
+    // A terminal opened on a task: its output comes (onData) from now on; what it printed so far.
+    watch: (id) => ipcRenderer.invoke('task:watch', id),
+    unwatch: (id) => ipcRenderer.send('task:unwatch', id),
     running: () => ipcRenderer.invoke('task:running'),
     snapshot: () => ipcRenderer.invoke('task:snapshot'),
     quiet: (id) => ipcRenderer.invoke('task:quiet', id),
-    history: (cwd, sessionId) => ipcRenderer.invoke('task:history', { cwd, sessionId }),
+    history: (cwd, sessionId, kind, id) => ipcRenderer.invoke('task:history', { cwd, sessionId, kind, id }),
     onData: (callback) => subscribe('task:data', callback),
     onState: (callback) => subscribe('task:state', callback),
     onTranscript: (callback) => subscribe('task:transcript', callback),
     onExit: (callback) => subscribe('task:exit', callback),
+    onTitle: (callback) => subscribe('task:title', callback),
     onLost: (callback) => subscribe('task:lost', callback),
   },
   // Hierarchy mode: a task run by a leader, workers and verifiers (daemon/team.js).
@@ -157,6 +174,7 @@ contextBridge.exposeInMainWorld('api', {
     create: (project, title) => ipcRenderer.invoke('worktree:create', { project, title }),
     merge: (tree, message) => ipcRenderer.invoke('worktree:merge', { tree, message }),
     discard: (tree) => ipcRenderer.invoke('worktree:discard', { tree }),
+    cleanup: (tree) => ipcRenderer.invoke('worktree:cleanup', { tree }),
     changes: (tree) => ipcRenderer.invoke('worktree:changes', { tree }),
   },
 });

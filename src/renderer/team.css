@@ -32,7 +32,7 @@
 }
 
 /* New task: the same row sits over the box. */
-.newtask > .foot-meta {
+.newtask .foot-meta {
   margin: 18px 0 8px;
 }
 

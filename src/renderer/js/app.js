@@ -1,28 +1,25 @@
-import { $, icons } from './util.js';
-import { createStore } from './store.js';
+import { $, el, icons, closeDown, SPRING } from './util.js';
+import { createStore, setCodexModels, customBackground, flatColor } from './store.js';
 import { createTaskClient } from './taskclient.js';
 import { createTeamClient, doing } from './teamclient.js';
 import { confirmDialog } from './dialog.js';
 import { createAgent } from './agent.js';
 import { initSidebar } from './sidebar.js';
-import { initChatView } from './chatview.js';
+import { initChatView, isDoc, fileUrl } from './chatview.js';
 import { initTerminal } from './terminal.js';
 import { initSettingsPage } from './settings.js';
+import { SUBAGENTS_LEAD } from './transcript.js';
 import { initVoice } from './voice.js';
-import { createLive } from './live.js';
-import { createTalk } from './talk.js';
-import { createWake } from './wake.js';
-import { meterElement } from './meter.js';
-import { faceSpeech } from './face.js';
 import { createAppTools } from './apptools.js';
-import { ding } from './ding.js';
+import { ding, doneSound } from './ding.js';
+import { initScene, SCENE_THEMES } from './scene.js';
 
 /**
  * Katana — renderer entry. Each task is a real terminal session
  * (Claude Code, Codex or a shell) that main runs; taskclient.js follows
  * what it does. Katana, the agent above the tasks, runs the app for you
  * with its own controls (apptools.js), reminds you of things, and is woken
- * when one finishes; with GPT-Live (live.js) you talk with her out loud.
+ * when one finishes.
  * The main panel shows one pane at a time: a task (or the agent, or New
  * task), the task's terminal, or settings.
  */
@@ -50,14 +47,15 @@ const panes = { chat: $('#chat'), terminal: $('#terminal'), settings: $('#settin
 const topbar = $('#topbar');
 const topLabel = $('#top-label');
 const openExternal = $('#open-external');
-const viewButtons = { avatar: $('#view-avatar'), chat: $('#view-chat'), file: $('#view-file'), app: $('#view-app'), terminal: $('#view-terminal') };
-viewButtons.avatar.innerHTML = icons.person;
+const viewButtons = { chat: $('#view-chat'), file: $('#view-file'), terminal: $('#view-terminal') };
 viewButtons.chat.innerHTML = icons.doc;
 viewButtons.file.innerHTML = icons.globe;
-viewButtons.app.innerHTML = icons.app;
 viewButtons.terminal.innerHTML = icons.prompt;
 let pane = 'chat';
 let beforeSettings = 'chat';
+const mainPanel = $('.panel.main');
+let closingSettings = false;
+const finishing = new Set(); // Tasks you just pressed Done on, on their way out.
 
 function showPane(name) {
   pane = name;
@@ -89,34 +87,39 @@ function tellScreen(task, fileMode) {
 function renderTopbar() {
   const task = store.task(chatView?.current());
   const fileMode = pane === 'chat' && chatView?.mode() === 'file';
+  // A document beside the chat: the sidebar folds away to make room, and comes back when it closes.
+  const docOpen = fileMode && isDoc(task?.viewFile) ? task.viewFile : '';
+  if (!docOpen) docSideOff = '';
+  setDocSide(Boolean(docOpen) && docOpen !== docSideOff);
   const appMode = pane === 'chat' && chatView?.mode() === 'app';
-  // The app viewer fills the main area, like a browser: no bar over it.
+  // The browser fills the main area: no bar over it.
   topbar.hidden = pane === 'settings' || appMode;
   const project = store.project(task?.projectId || ctx.currentProject());
   const view = chatView?.view().type;
-  let label = project?.name || '';
-  if (fileMode) label = task.viewFile.split(/[\\/]/).pop();
-  else if (appMode) label = `${project?.name || ''} · app`;
-  else if (view === 'agent') label = 'katana';
-  else if (task?.worktree && !task.merged) label = `${project?.name || ''} · ${task.worktree.branch}`;
-  topLabel.textContent = label;
+  // Home keeps the scene sharp; anything you read or work in brings it out of focus behind you (macos.css).
+  const looking = pane === 'chat' && (!view || view === 'new') ? 'home' : 'work';
+  if (document.body.dataset.view !== looking) document.body.dataset.view = looking;
+  // Where you are, as a trail: the folder (and a worktree's branch), then the task or file.
+  const folder = task?.worktree && !task.merged ? `${project?.name || ''} · ${task.worktree.branch}` : project?.name || '';
+  let trail = [folder];
+  if (fileMode) trail = [folder, task.viewFile.split(/[\\/]/).pop()];
+  else if (appMode) trail = [folder, 'page'];
+  else if (view === 'agent') trail = ['Katana'];
+  else if (task) trail = [folder, task.title];
+  trail = trail.filter(Boolean);
+  // (A branch's name carries its mark, as in the sidebar.)
+  const branchMark = view !== 'agent' && !fileMode && !appMode && task?.forkOf ? el('span', { class: 'branch-mark', title: 'Branched: it remembers the conversation it came from', html: icons.branch }) : null;
+  topLabel.replaceChildren(...trail.flatMap((part, i) => [i ? el('span', { class: 'top-sep', text: '/', 'aria-hidden': 'true' }) : null, i === trail.length - 1 ? branchMark : null, el('span', { class: i === trail.length - 1 ? 'top-here' : '', text: part })].filter(Boolean)));
   topLabel.title = fileMode ? task.viewFile : task?.cwd || project?.path || '';
-  openExternal.hidden = !fileMode;
+  // (A document's own bar has Show in Explorer: this is for what fills the area.)
+  openExternal.hidden = !fileMode || Boolean(docOpen);
   tellScreen(task, fileMode);
   // A page opens in the browser; a document in its own app.
   if (fileMode) openExternal.textContent = /\.(md|markdown|txt)$/i.test(task.viewFile) ? 'Open' : 'Open in browser';
   viewButtons.file.hidden = !task?.viewFile;
   viewButtons.terminal.hidden = !task;
-  // Run app: starts the task's app the first time, then shows it.
-  viewButtons.app.hidden = !task;
-  const appState = task ? chatView.app.state(task.id) : null;
-  viewButtons.app.title = appState ? 'App' : 'Run app';
-  viewButtons.app.classList.toggle('is-running', Boolean(task && chatView.app.isLive(task.id)));
-  // Katana: its face, or its conversation.
-  viewButtons.avatar.hidden = view !== 'agent';
-  const face = view === 'agent' && chatView.agentMode() === 'avatar';
   viewButtons.chat.title = view === 'agent' ? 'Conversation' : 'Task';
-  const lit = pane === 'terminal' ? 'terminal' : fileMode ? 'file' : appMode ? 'app' : face ? 'avatar' : 'chat';
+  const lit = pane === 'terminal' ? 'terminal' : fileMode || appMode ? 'file' : 'chat';
   for (const [key, button] of Object.entries(viewButtons)) {
     button.classList.toggle('is-active', key === lit);
     button.setAttribute('aria-pressed', String(key === lit));
@@ -125,23 +128,13 @@ function renderTopbar() {
 
 viewButtons.chat.addEventListener('click', () => {
   if (pane !== 'chat') showPane('chat');
-  if (chatView.view().type === 'agent') chatView.setAgentMode('doc');
-  else chatView.setMode('chat');
+  chatView.setMode('chat');
 });
-viewButtons.avatar.addEventListener('click', () => chatView.setAgentMode('avatar'));
 viewButtons.file.addEventListener('click', () => {
   if (pane !== 'chat') showPane('chat');
   chatView.setMode('file');
 });
 viewButtons.terminal.addEventListener('click', () => showPane(pane === 'terminal' ? 'chat' : 'terminal'));
-viewButtons.app.addEventListener('click', () => {
-  const id = chatView.current();
-  if (!id) return;
-  if (pane !== 'chat') showPane('chat');
-  if (chatView.mode() === 'app') chatView.setMode('chat');
-  else if (chatView.app.has(id)) chatView.setMode('app');
-  else chatView.runApp(id);
-});
 openExternal.addEventListener('click', () => {
   const file = store.task(chatView.current())?.viewFile;
   if (file) api.file.open(file);
@@ -171,18 +164,18 @@ async function createTask({ projectId, kind = 'claude', mode, prompt = '', workt
     }
   }
   // Hierarchy mode (Claude only): the task's session leads a team, on the leader's model unless one was picked.
-  // Sub-agents mode: its session delegates to sub-agents, on the main session's model (Sonnet) unless one was picked.
+  // Sub-agents mode: its session leads on Opus (always: runargs.js) and picks a sub-agent per piece.
   const { settings } = store.state;
   const want = kind === 'claude' ? (mode ?? settings.taskMode) : 'single';
   const lead = want === 'hierarchy';
   const delegate = want === 'subagents';
-  const task = store.newTask(projectId, { kind, mode: lead || delegate ? want : 'single', title: name, worktree: tree, model: model ?? (lead ? settings.managerModel : delegate ? settings.subagentsModel : undefined), effort: effort ?? (lead ? settings.managerEffort : undefined) });
+  const task = store.newTask(projectId, { kind, mode: lead || delegate ? want : 'single', title: name, worktree: tree, model: delegate ? SUBAGENTS_LEAD : model ?? (lead ? settings.managerModel : undefined), effort: effort ?? (lead ? settings.managerEffort : undefined) });
   await store.flush();
   if (open) ctx.open(task.id);
   const reply = prompt ? await tasks.send(task, prompt) : await tasks.start(task);
   if (reply?.error) chatView.flash(reply.error);
-  // Codex and shells are their terminal: show it.
-  if (open && kind !== 'claude') showPane('terminal');
+  // A shell is its terminal: show it. (Codex reads like Claude, in the chat.)
+  if (open && kind === 'shell') showPane('terminal');
   sidebar.render();
   return task;
 }
@@ -222,40 +215,6 @@ tasks.on(({ id, type, at }) => {
 
 /* ------------------------------- agent ------------------------------- */
 
-let speaking = null;
-function speak(text) {
-  // In a voice conversation she says it herself.
-  if (live?.active() || talk?.active() || !store.state.settings.speakWhenDone) return;
-  // Her own voice (OpenRouter, or ElevenLabs directly) when there's a key; else Windows' voice.
-  if (routerKey || elevenKey) {
-    api.speech.say(text, store.state.settings.speechVoice).then((speech) => {
-      if (speech?.error) chatView.flash(`Katana’s voice: ${speech.error}`);
-      if (!speech?.audio) return;
-      if (speaking) {
-        speaking.pause();
-        URL.revokeObjectURL(speaking.src);
-      }
-      const bytes = Uint8Array.from(atob(speech.audio), (c) => c.charCodeAt(0));
-      speaking = new Audio(URL.createObjectURL(new Blob([bytes], { type: speech.type || 'audio/wav' })));
-      meterElement(speaking);
-      // Her face says the words with it: timed by ElevenLabs when it gave times, else fitted to the recording.
-      faceSpeech.play(speaking, { text, bytes, alignment: speech.alignment });
-      speaking.play().catch(() => {});
-    });
-    return;
-  }
-  if (!('speechSynthesis' in window)) return;
-  const words = new SpeechSynthesisUtterance(text);
-  words.rate = 1.05;
-  // Her face says the words as they're said: each word's start, from the voice itself.
-  words.addEventListener('start', () => faceSpeech.begin(text, words.rate));
-  words.addEventListener('boundary', (event) => event.name === 'word' && faceSpeech.word(event.charIndex, event.charLength));
-  words.addEventListener('end', () => faceSpeech.end());
-  words.addEventListener('error', () => faceSpeech.end());
-  speechSynthesis.cancel();
-  speechSynthesis.speak(words);
-}
-
 // Katana lives in katanad: her conversation and reminders are hers, the window shows them.
 store.agentRemote = {
   say: (role, text, extra) => api.agent.say(role, text, extra),
@@ -264,8 +223,6 @@ store.agentRemote = {
   drop: (id) => api.agent.drop(id),
 };
 const agent = createAgent({ api, store });
-// What she says out loud (a voice conversation says its own; a finished task is only written).
-agent.on(({ type, text, kind }) => type === 'reply' && kind !== 'voice' && kind !== 'finished' && speak(text));
 
 // A reminder came due (she tells you what it was about, too).
 /**
@@ -282,37 +239,6 @@ api.agent.onAlert(({ level, title, body, taskId, taskIds }) => {
   notify(title, body, open);
 });
 
-const live = createLive({ api, store, agent, ctx: { flash: (text) => ctx.flash(text), userName: () => ctx.userName() } });
-// Talking a turn at a time through OpenRouter (when there's no GPT-Live).
-const talk = createTalk({ api, agent, store, ctx: { flash: (text) => ctx.flash(text) } });
-let liveKey = null;
-let routerKey = null;
-let elevenKey = null;
-/** Which voice keys are set (Settings asks again after a change). */
-const refreshKeys = () =>
-  Promise.all([
-    api.live
-      .hasKey()
-      .then((has) => (liveKey = has))
-      .catch(() => (liveKey = false)),
-    api.openrouter
-      .hasKey()
-      .then((has) => (routerKey = has))
-      .catch(() => (routerKey = false)),
-    api.elevenlabs
-      .hasKey()
-      .then((has) => (elevenKey = has))
-      .catch(() => (elevenKey = false)),
-  ]);
-refreshKeys().then(() => routerKey && talk.warm());
-let warmedVoice = store.state.settings.speechVoice;
-store.on('change', () => {
-  const voice = store.state.settings.speechVoice;
-  if (voice !== warmedVoice && routerKey) talk.warm();
-  warmedVoice = voice;
-});
-let liveHinted = false;
-
 /* -------------------------------- ctx -------------------------------- */
 
 const ctx = {
@@ -323,6 +249,7 @@ const ctx = {
   agent,
   current: () => chatView?.current() || null,
   viewType: () => chatView?.view().type || 'new',
+  sceneAgents: (list) => scene.setAgents(list),
   // A hierarchy task works while its team does, even when its leader waits.
   stateOf: (id) => (tasks.get(id).state === 'idle' && team.busy(id) ? 'working' : tasks.get(id).state),
   /** What a working task is doing, in a few words (the sidebar's second line). */
@@ -335,8 +262,8 @@ const ctx = {
   },
   /**
    * Switch a task between 'single' (one session), 'hierarchy' (a leader
-   * with workers and verifiers) and 'subagents' (one session that delegates
-   * to sub-agents on Sonnet, Opus or Haiku). Not while it works; an idle session closes
+   * with workers and verifiers) and 'subagents' (one Opus session that leads
+   * and hands each piece to a Haiku, Sonnet or Opus sub-agent). Not while it works; an idle session closes
    * and resumes in its new role on the next message, same conversation.
    * Leaving hierarchy stops a working team (after asking); unmerged work stays on its branches.
    */
@@ -362,7 +289,7 @@ const ctx = {
     const left = reply?.unmerged?.length ? ` Unmerged work stays on ${reply.unmerged.join(', ')}.` : '';
     const said = {
       hierarchy: 'Hierarchy: your next message goes to the Leader, who splits the work across workers and has verifiers check it.',
-      subagents: `Sub-agents: your next message goes to one Claude session, same conversation, which hands the work to sub-agents (Sonnet; Opus for hard problems, Haiku for tiny fixes).${left}`,
+      subagents: `Sub-agents: your next message goes to one Claude session, same conversation, led by Opus, which hands each piece to a sub-agent: Haiku for simple fixes, Sonnet for hard work and logic, Opus for complicated systems and hard bugs.${left}`,
       single: `Single agent: your next message goes to one Claude session, same conversation.${left}`,
     };
     chatView.flash(said[next]);
@@ -371,8 +298,18 @@ const ctx = {
     renderTopbar();
     return reply;
   },
+  /** The collapsed sidebar slid out over the chat (hover; sidebar.js), or back. Never saved. */
+  setPeek(on) {
+    peek = Boolean(on);
+    applyLook();
+  },
   /** The sidebar as a slim rail (Ctrl+B), or full. */
   toggleRail() {
+    // Folded for a document beside the chat: Ctrl+B opens it (or folds it) for that document only.
+    if (docSide || docSideOff) {
+      docSideOff = docSide ? store.task(chatView.current())?.viewFile || '' : '';
+      return setDocSide(!docSide);
+    }
     store.setSetting('rail', !store.state.settings.rail);
   },
   /** Open a task; null opens New task. */
@@ -399,15 +336,39 @@ const ctx = {
     ctx.open(null);
   },
   createTask,
+  /**
+   * Branch a Claude task: a new task that starts from its conversation so far
+   * (Claude Code's --fork-session), in the same folder. The two go on separately.
+   */
+  branch(id) {
+    const from = store.task(id);
+    if (!from || from.kind !== 'claude' || !from.started) return null;
+    const task = store.newTask(from.projectId, {
+      kind: 'claude',
+      // A team is its leader's own: the branch is one session (switch it after, if you like).
+      mode: from.mode === 'hierarchy' ? 'single' : from.mode,
+      // (aiTitled: the copied session's own title would make it look like the original. Its next message names it.)
+      title: from.title,
+      aiTitled: true,
+      model: from.model,
+      effort: from.effort,
+      // Its folder, worktree included: the worktree stays the original task's (merged or deleted with it).
+      cwd: from.cwd,
+      forkOf: from.sessionId,
+    });
+    ctx.open(task.id);
+    // (A new branch is only its prompt bar, with no words on the page.)
+    return task;
+  },
   /** Write to a task from anywhere (the prompt bar, Katana). */
   async sendToTask(id, text) {
     const task = store.task(id);
     if (!task) return null;
     if (task.doneAt) store.markDone(id, false);
     store.patchTask(id, { updatedAt: Date.now() });
+    // Not running: the message starts its session, in its terminal's size when that's open.
     const term = id === terminal.shown() ? terminal.size() : null;
-    if (!tasks.get(id).running && term) await tasks.start(task, '', { cols: term.cols, rows: term.rows });
-    return tasks.send(task, text);
+    return tasks.send(task, text, term ? { cols: term.cols, rows: term.rows } : {});
   },
   /** Done with a task: its session ends, it leaves the list, the next one shows. */
   done(id, { quiet = false } = {}) {
@@ -418,6 +379,41 @@ const ctx = {
     chatView.app.drop(id);
     store.markDone(id);
     if (!quiet && chatView.current() === id) ctx.open(store.openTasks()[0]?.id || null);
+    // Free its transcript and terminal like a delete does (reopening reloads the transcript from disk).
+    // A moment later, so the last lines of the ended session don't recreate a half-empty transcript.
+    setTimeout(() => {
+      const now = store.task(id);
+      if (!now?.doneAt || chatView.current() === id || ctx.stateOf(id) === 'working') return;
+      tasks.forget(id);
+      terminal.drop(id);
+      terminal.team.drop(id);
+    }, 1500);
+  },
+  /** You pressing Done: a tick, a sound, and the chat closes down before the next one shows. */
+  finishTask(id) {
+    const task = store.task(id);
+    if (!task || task.doneAt || finishing.has(id) || ctx.stateOf(id) === 'working') return;
+    if (store.state.settings.ding) doneSound();
+    if (chatView.current() !== id || pane === 'settings') {
+      ctx.done(id);
+      return;
+    }
+    finishing.add(id);
+    const button = document.querySelector('.key-btn.is-done-key');
+    if (button) {
+      button.style.minWidth = `${button.offsetWidth}px`;
+      button.classList.add('is-finishing');
+      button.innerHTML = `${icons.check}Done`;
+      button.animate([{ transform: 'scale(0.86)' }, { transform: 'none' }], { duration: 380, easing: SPRING });
+    }
+    closeDown(
+      mainPanel,
+      () => {
+        finishing.delete(id);
+        ctx.done(id);
+      },
+      button ? 130 : 0
+    );
   },
   /** Merge a worktree task's branch back, then it's done. */
   async merge(id) {
@@ -473,7 +469,9 @@ const ctx = {
    * weekly use (whole percents, as Anthropic reports them; a window past its
    * reset is dropped), else this task's memory. { text, share 0..1, title } or null.
    */
-  usage(id) {
+  usage: (id) => ctx.planUsage() || ctx.contextUsage(id),
+  /** The plan's live 5-hour and weekly use: { text, short, share, title }, or null. */
+  planUsage() {
     const now = Date.now();
     const live = [
       ['5h', 'These 5 hours', plan?.fiveHour],
@@ -483,13 +481,19 @@ const ctx = {
       const resets = (at) => new Date(at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
       return {
         text: `${live.map(([type, , w]) => `${type} ${Math.round(w.used * 100)}%`).join(' · ')} used`,
+        short: live.map(([type, , w]) => `${type} ${Math.round(w.used * 100)}%`).join(' · '),
         share: Math.max(...live.map(([, , w]) => w.used)),
         title: live.map(([, label, w]) => `${label}: ${Math.round(w.used * 100)}% of your Claude plan used, resets ${resets(w.resetsAt)}`).join('\n'),
       };
     }
+    return null;
+  },
+  /** How full a task's memory is: { text, share, title }, or null with no task. */
+  contextUsage(id) {
     if (!id) return null;
     const { used, window } = ctx.contextOf(id);
-    return { text: `ctx ${((used / window) * 100).toFixed(2)}% used`, share: used / window, title: 'How full this task’s memory is' };
+    const percent = (used / window) * 100;
+    return { text: `${percent > 0 && percent < 1 ? '<1' : Math.round(percent)}% context`, share: used / window, title: 'How full this task’s memory (context window) is' };
   },
   addProject: () => sidebar.addProject(),
   removeProject: (project) => sidebar.removeProject(project),
@@ -498,7 +502,19 @@ const ctx = {
     settingsPage.show();
     showPane('settings');
   },
-  closeSettings: () => showPane(beforeSettings),
+  closeSettings() {
+    if (pane !== 'settings') {
+      showPane(beforeSettings);
+      return;
+    }
+    if (closingSettings) return;
+    closingSettings = true;
+    closeDown(mainPanel, () => {
+      closingSettings = false;
+      // (Unless something else was opened while it closed.)
+      if (pane === 'settings') showPane(beforeSettings);
+    });
+  },
   showTerminal: () => chatView.current() && showPane('terminal'),
   /** The open task's file in the viewer. */
   showFile() {
@@ -517,7 +533,6 @@ const ctx = {
   stopApp: (id) => chatView.app.stop(id),
   appState: (id) => chatView.app.state(id),
   appOutput: (id) => chatView.app.output(id),
-  setAgentMode: (mode) => chatView.setAgentMode(mode),
   pane: () => pane,
   shells: () => [{ value: '', label: 'Default' }, ...shellList.map((shell) => ({ value: shell.id, label: shell.label }))],
   info: () => info,
@@ -529,34 +544,26 @@ const ctx = {
     if (chatView.mode() !== 'chat') chatView.setMode('chat');
   },
   onMode: () => renderTopbar(),
-  /** Talk: a GPT-Live conversation with Katana when it's set up, dictation otherwise. */
-  /**
-   * Talk: a GPT-Live conversation with an OpenAI key (when that's on);
-   * else, with an OpenRouter key, a turn at a time (talk.js); else dictation.
-   */
-  toggleVoice() {
-    if (live.active()) return live.stop();
-    if (talk.active()) return talk.tap();
-    if (store.state.settings.liveVoice && liveKey) return live.start();
-    if (routerKey) return talk.tap();
-    if (liveKey === false && routerKey === false && !liveHinted && chatView.view().type === 'agent') {
-      liveHinted = true;
-      chatView.flash('Add an OpenAI or OpenRouter key in Settings → Katana to talk with her out loud. Dictating for now.');
-    }
-    return voice.toggle();
-  },
-  /** The prompt bar's mic: dictation only, never a call. */
+  /** The prompt bar's mic: dictation. */
   dictate: () => voice.toggle(),
-  isListening: () => Boolean(live?.active() || talk?.active() || voice?.isListening()),
-  /** The voice conversation on now (what the face shows): a turn-at-a-time one, or GPT-Live. */
-  live: () => (talk.active() ? talk : live),
-  /** An OpenRouter key is set (her wake word and turn-at-a-time voice need it). */
-  routerKey: () => Boolean(routerKey),
-  refreshLiveKey: refreshKeys,
 };
 
 // What a task's app logged going wrong in the viewer: kept with the task, unseen, until your next message to it.
-api.appview.onError(({ taskId, entry } = {}) => store.addAppError(taskId, entry));
+// A burst of them (an app printing error after error) is kept in one go, a moment later.
+const appErrorsHeld = new Map(); // task id -> entries
+let appErrorsTimer = 0;
+api.appview.onError(({ taskId, entry } = {}) => {
+  const list = appErrorsHeld.get(taskId) || [];
+  // (A flood beyond this adds nothing: the log keeps 50, repeats counted.)
+  if (list.length < 500) list.push(entry);
+  appErrorsHeld.set(taskId, list);
+  appErrorsTimer = appErrorsTimer || setTimeout(keepAppErrors, 300);
+});
+function keepAppErrors() {
+  appErrorsTimer = 0;
+  for (const [taskId, entries] of appErrorsHeld) store.addAppErrors(taskId, entries);
+  appErrorsHeld.clear();
+}
 
 // A task going away ends its session first.
 store.on('task-deleting', (id) => {
@@ -565,7 +572,15 @@ store.on('task-deleting', (id) => {
   chatView.app.drop(id);
   tasks.forget(id);
   terminal.drop(id);
+  terminal.team.drop(id);
   if (chatView.current() === id) queueMicrotask(() => ctx.open(store.openTasks()[0]?.id || null));
+  // Its unmerged worktree goes too (after its session lets go of the folder); a branch holding unmerged work stays.
+  const tree = store.task(id)?.worktree;
+  // (Not while a branch of it still works in that folder.)
+  const branched = tree && store.state.tasks.some((task) => task.id !== id && task.cwd === tree.path);
+  if (tree && !store.task(id).merged && !branched) {
+    setTimeout(() => api.worktree.cleanup(tree).then((reply) => reply?.warning && chatView.flash(reply.warning)).catch(() => {}), 500);
+  }
 });
 
 // The plan's live use: every minute, when a turn finishes, and when Katana's runs say it moved.
@@ -582,24 +597,64 @@ api.run.onEvent((event) => {
 
 const darkScheme = window.matchMedia('(prefers-color-scheme: dark)');
 let lastLook = '';
+// The sidebar folded for a document open beside the chat (not saved: settings.rail is your own choice).
+let docSide = false;
+// The document you opened the sidebar again for (Ctrl+B): it stays open for that one.
+let docSideOff = '';
+function setDocSide(on) {
+  if (docSide === on) return;
+  docSide = on;
+  applyLook();
+}
+// Collapsed, and slid out for the moment under the mouse.
+let peek = false;
 let loginWanted = null;
 
 function applyLook() {
   const { settings } = store.state;
   if (loginWanted !== null && loginWanted !== Boolean(settings.openAtLogin)) api.sys.openAtLogin(Boolean(settings.openAtLogin));
   loginWanted = Boolean(settings.openAtLogin);
-  const theme = settings.theme === 'system' ? (darkScheme.matches ? 'graphite' : 'light') : settings.theme || 'graphite';
-  const look = `${theme}|${settings.textSize}|${settings.motion}|${settings.rail}`;
+  // One of your own backgrounds: the 'custom' scene, painting that picture. No background: 'none' over either (scene.js), the theme kept.
+  // Slate has no scene and its own colour; the settings for the others are kept for coming back.
+  const slate = settings.style === 'slate';
+  const noScene = slate || settings.noBackground;
+  const own = noScene ? null : customBackground(settings);
+  const theme = noScene ? 'none' : own ? 'custom' : SCENE_THEMES.has(settings.theme) ? settings.theme : 'night-lake';
+  const flat = slate ? { id: 'slate', hex: '#2f3642' } : flatColor(settings);
+  const look = `${settings.style}|${theme}|${flat.id}|${own?.file || ''}|${Boolean(settings.darkMode)}|${settings.textSize}|${settings.rail}|${docSide}|${peek}`;
   if (look === lastLook) return;
   lastLook = look;
+  if (own) document.body.dataset.photo = fileUrl(own.file);
+  else delete document.body.dataset.photo;
+  // No background's colour: the one source of the window's and panels' flat colour (styles.css, macos.css).
+  document.body.style.setProperty('--flat-c', flat.hex);
+  document.body.dataset.flat = flat.id;
   document.body.dataset.theme = theme;
+  if (slate) document.body.dataset.look = 'slate';
+  else delete document.body.dataset.look;
+  document.body.toggleAttribute('data-dark', slate || Boolean(settings.darkMode));
   document.body.dataset.size = settings.textSize === 'larger' ? 'larger' : 'default';
-  document.body.dataset.motion = settings.motion || 'full';
-  document.body.toggleAttribute('data-rail', Boolean(settings.rail));
+  // Slid out, it's drawn as the full sidebar over the rail's narrow column (data-peek: macos.css).
+  const folded = Boolean(settings.rail) || docSide;
+  if (peek && !folded) {
+    peek = false;
+    sidebar?.holdWidth();
+  }
+  document.body.toggleAttribute('data-rail', folded && !peek);
+  document.body.toggleAttribute('data-peek', folded && peek);
   terminal?.retheme();
   sidebar?.render();
 }
 store.on('change', applyLook);
+// The open task's name changed (renamed, or the AI's title): the top bar follows.
+let topTitle = '';
+store.on('change', () => {
+  const title = store.task(chatView?.current())?.title || '';
+  if (title === topTitle) return;
+  topTitle = title;
+  renderTopbar();
+});
+const scene = initScene();
 darkScheme.addEventListener('change', () => {
   lastLook = '';
   applyLook();
@@ -642,7 +697,7 @@ document.addEventListener('keydown', (event) => {
     if (pane === 'chat' && chatView.current()) {
       if (key === 'd') {
         event.preventDefault();
-        ctx.done(chatView.current());
+        ctx.finishTask(chatView.current());
         return;
       }
       if (key === '.') {
@@ -657,14 +712,39 @@ document.addEventListener('keydown', (event) => {
       return;
     }
   }
-  if (event.key === 'Escape' && pane === 'settings' && !document.querySelector('.dialog, .pop')) {
+  // (Not when Esc just stopped dictation: voice.js took it.)
+  if (event.key === 'Escape' && !event.defaultPrevented && pane === 'settings' && !document.querySelector('.dialog:not(.is-leaving), .pop:not(.is-leaving)')) {
     event.preventDefault();
     ctx.closeSettings();
   }
 });
 
 // A change made in the last moment before closing or reloading is still saved (saves are debounced).
-window.addEventListener('beforeunload', () => store.flush());
+window.addEventListener('beforeunload', () => {
+  if (appErrorsTimer) keepAppErrors();
+  store.flush();
+});
+
+// The saved state couldn't be read (nor its backup): nothing is saved over it until you choose.
+store.on('unreadable', async ({ message, file } = {}) => {
+  const fresh = await confirmDialog({
+    title: 'Your saved projects and tasks couldn’t be read',
+    body: `${file || 'state.json'} is damaged or locked (${message}). Nothing has been written over it. Start fresh keeps it beside the new one (renamed .unreadable-…) so it can be recovered; Not now leaves it alone (changes you make won’t be saved; F5 tries again).`,
+    ok: 'Start fresh',
+    cancel: 'Not now',
+  });
+  if (fresh) return startFresh();
+  const bar = el('div', { class: 'state-unreadable', role: 'alert', style: 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:8px;background:#5a1d1d;color:#fff;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.4)' }, el('span', { text: 'Saved state unreadable: changes aren’t being saved.' }), el('button', { class: 'btn', type: 'button', text: 'Start fresh', onclick: () => startFresh().then(() => bar.remove()) }));
+  document.body.append(bar);
+});
+async function startFresh() {
+  try {
+    await store.startFresh();
+    chatView.flash('Started fresh. The unreadable file was kept beside it in the data folder.');
+  } catch (error) {
+    chatView.flash(`Couldn’t start fresh: ${error.message}`);
+  }
+}
 
 // Like a Mac window: the lights go grey while you're in another app.
 window.addEventListener('blur', () => document.body.toggleAttribute('data-blurred', true));
@@ -672,63 +752,24 @@ window.addEventListener('focus', () => document.body.toggleAttribute('data-blurr
 
 /* ------------------------------- start ------------------------------- */
 
+// The opening (macos.css): the scene comes up out of the dark, then the panels settle over it.
+setTimeout(() => document.body.removeAttribute('data-boot'), 2600);
+
 const chatView = initChatView(ctx);
 const terminal = initTerminal(ctx);
 const settingsPage = initSettingsPage(ctx);
 const sidebar = initSidebar(ctx);
 const voice = initVoice(ctx);
 
-/** She heard her name: two soft rising notes. */
-function chime() {
-  try {
-    const audio = new AudioContext();
-    [660, 880].forEach((pitch, i) => {
-      const tone = audio.createOscillator();
-      const level = audio.createGain();
-      tone.frequency.value = pitch;
-      level.gain.setValueAtTime(0, audio.currentTime + i * 0.09);
-      level.gain.linearRampToValueAtTime(0.07, audio.currentTime + i * 0.09 + 0.02);
-      level.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + i * 0.09 + 0.22);
-      tone.connect(level).connect(audio.destination);
-      tone.start(audio.currentTime + i * 0.09);
-      tone.stop(audio.currentTime + i * 0.09 + 0.25);
-    });
-    setTimeout(() => audio.close(), 800);
-  } catch {
-    /* no sound: she still listens */
-  }
-}
-
-// "Katana" / "hey Katana": she wakes and listens, wherever you are in the app; Tab sends.
-createWake({
-  api,
-  store,
-  ctx,
-  busy: () => talk.active() || live.active() || voice.isListening() || Boolean(speaking && !speaking.paused && !speaking.ended),
-  onWake(request) {
-    if (store.state.settings.liveVoice && liveKey && !request) {
-      chime();
-      live.start();
-      return;
-    }
-    // She answers to her name herself ("Mhm?", "What's up?"), then listens.
-    talk.wake(request);
-    chatView.flash(request ? `Katana heard “${request}”. Say more, or press Tab to send.` : 'Katana is listening. Press Tab to send.');
-  },
-});
 const appTools = createAppTools({
   api,
   store,
   tasks,
   ctx,
   terminal,
-  live,
   flash: (text) => chatView.flash(text),
   notify: (text) => !document.hasFocus() && notify('Katana', text, () => ctx.openAgent()),
 });
-// The face follows the call: listening, speaking, hung up.
-live.on(() => chatView.view().type === 'agent' && chatView.refreshVoice());
-talk.on(() => chatView.view().type === 'agent' && chatView.refreshVoice());
 
 api.shells.list().then((list) => {
   shellList = list || [];
@@ -738,6 +779,9 @@ api.sys.info().then((value) => {
 });
 api.sys.found().then((value) => {
   found = value;
+  // The models Codex offers now, for its model menus.
+  setCodexModels(value?.codexModels);
+  chatView.refresh();
 });
 
 store.load().then(async () => {
@@ -745,7 +789,8 @@ store.load().then(async () => {
   refreshPlan();
   setInterval(refreshPlan, PLAN_EVERY);
   // The tasks and Katana live on in katanad: catch up with them.
-  await Promise.all([tasks.sync(), agent.sync(), team.sync()]);
+  // Then her tool calls can come here (until now main kept them waiting).
+  await Promise.all([tasks.sync(), agent.sync(), team.sync()]).finally(() => api.tools?.ready?.());
   let last = null;
   try {
     last = localStorage.getItem(LAST_VIEW);
@@ -759,4 +804,4 @@ store.load().then(async () => {
 });
 
 // Look tests drive the app through this.
-window.__x2 = { store, ctx, chatView, sidebar, terminal, tasks, team, agent, live, talk, showPane, appTools };
+window.__x2 = { scene, store, ctx, chatView, sidebar, terminal, tasks, team, agent, showPane, appTools };

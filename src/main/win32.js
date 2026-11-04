@@ -192,11 +192,12 @@ function startedAt(pid) {
  * A process and everything it started (and they started). Never this app
  * itself: Windows reuses the number of a process that has ended, so a
  * parent link is only believed when the child started after the parent.
+ * A poll over several apps passes one snapshot (`parents`) for them all,
+ * and start times it remembers (`startTime`).
  */
-function processTree(rootPid) {
-  const parents = processParents();
+function processTree(rootPid, { parents = processParents(), startTime = startedAt } = {}) {
   const candidates = descendants(rootPid, parents);
-  const born = new Map([...candidates].map((pid) => [pid, startedAt(pid)]));
+  const born = new Map([...candidates].map((pid) => [pid, startTime(pid)]));
   return descendants(rootPid, parents, { born, exclude: process.pid });
 }
 
@@ -489,6 +490,7 @@ module.exports = {
   },
   processParents,
   processTree,
+  startedAt,
   descendants,
   windowsOf,
   windowRects,

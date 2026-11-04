@@ -47,8 +47,8 @@ const core = createCore({
   assert.deepEqual(state.result.folders.map((f) => f.name), ['proj']);
 
   // Settings change in the saved state, checked as in the window; her memory stays out of it.
-  assert.deepEqual((await core.tool('set_setting', { key: 'theme', value: 'black' })).result, { theme: 'black' });
-  assert.equal(saved().settings.theme, 'black');
+  assert.deepEqual((await core.tool('set_setting', { key: 'theme', value: 'rooftop-rain' })).result, { theme: 'rooftop-rain' });
+  assert.equal(saved().settings.theme, 'rooftop-rain');
   assert.equal(saved().agent, undefined);
   assert.match((await core.tool('set_setting', { key: 'theme', value: 'pink' })).error, /one of/);
 

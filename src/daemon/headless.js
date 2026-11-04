@@ -9,18 +9,25 @@
  *
  * What needs a screen (show, open_file, run_app) or your confirmation (trust_folder,
  * remove_folder) says so instead.
+ *
+ * Every call that changes the state runs alone (one after another): it
+ * reads state.json, changes it and writes it back before the next one
+ * reads it, so two calls at once never lose each other's change. A window
+ * opening takes over only once those are done (`idle`, core.js). A state
+ * file that can't be read is never written over: the call says so.
  */
 
-const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const worktree = require('../main/worktree');
 const { plain } = require('../main/tasks');
 const { shellsFrom } = require('../main/shells');
 const { existsInPath } = require('../main/claude');
+const { SUBAGENTS_LEAD } = require('../main/runargs');
+const { codexModels } = require('../main/codex');
 const { lastAnswer } = require('./agent');
+const { loadStateFile, writeStateFile } = require('../main/statefile');
 
-const MODEL_ALIAS = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5', haiku: 'claude-haiku-5-5' };
 const RENDERER = path.join(__dirname, '..', 'renderer', 'js');
 const NEEDS_WINDOW = 'No Katana window is open, and this needs one. Say what you would show, or ask the user to open the app.';
 
@@ -35,41 +42,79 @@ let modules = null;
 function load() {
   modules =
     modules ||
-    Promise.all(['store.js', 'apptools.js', 'transcript.js'].map((name) => import(pathToFileURL(path.join(RENDERER, name)).href))).then(([store, apptools, transcript]) => ({
-      ...store,
-      ...apptools,
-      ...transcript,
-    }));
+    Promise.all(['store.js', 'apptools.js', 'transcript.js'].map((name) => import(pathToFileURL(path.join(RENDERER, name)).href))).then(([store, apptools, transcript]) => {
+      // The models Codex offers now (as the window reads them).
+      store.setCodexModels(codexModels());
+      return { ...store, ...apptools, ...transcript };
+    });
   return modules;
 }
 
-function createHeadless({ userDataDir, core, agent, notify }) {
+function createHeadless({ userDataDir, core, agent, notify, onWrite = () => {} }) {
   const stateFile = path.join(userDataDir, 'state.json');
 
-  /** The saved state, through the window's store: changed, then written. */
-  async function withStore(change, { write = true } = {}) {
-    const { createStore } = await load();
-    const store = createStore({
-      state: {
-        load: async () => {
-          try {
-            return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-          } catch {
-            return null;
-          }
+  // The calls that change the state, one at a time: each waits for the one before.
+  let queue = Promise.resolve();
+  function alone(fn) {
+    const turn = queue.then(fn);
+    queue = turn.catch(() => {});
+    return turn;
+  }
+
+  /** The saved state, read now (null: none yet); throws when it can't be read. */
+  function readSaved() {
+    const loaded = loadStateFile(stateFile);
+    if (loaded.error) throw new Error(`The app’s saved state (state.json) can’t be read (${loaded.error}), so nothing was changed. Ask the user to open the app, which can recover it.`);
+    return loaded.state;
+  }
+
+  /**
+   * The saved state, through the window's store: read, changed, then
+   * written. A call that changes it (`write`) runs alone, start to end.
+   * Nothing is written for a call that only reads, after one that failed
+   * (what it flushed itself stays), or once the call is over (a late
+   * debounced save).
+   */
+  function withStore(change, { write = true } = {}) {
+    const run = async () => {
+      const { createStore } = await load();
+      const saved = readSaved();
+      let open = true;
+      const store = createStore({
+        state: {
+          load: () => saved,
+          // Katana's memory lives in agent.json, not here.
+          save: (state) => {
+            if (!open || !write) return false;
+            writeStateFile(stateFile, { ...state, agent: undefined });
+            onWrite();
+            return true;
+          },
         },
-        // Katana's memory lives in agent.json, not here.
-        save: async (state) => {
-          fs.writeFileSync(`${stateFile}.tmp`, JSON.stringify({ ...state, agent: undefined }, null, 2), 'utf8');
-          fs.renameSync(`${stateFile}.tmp`, stateFile);
-          return true;
-        },
-      },
-    });
-    await store.load();
-    const result = await change(store);
-    if (write) await store.flush();
-    return result;
+      });
+      await store.load();
+      try {
+        const result = await change(store);
+        if (write) await store.flush();
+        return result;
+      } finally {
+        open = false;
+      }
+    };
+    return write ? alone(run) : run();
+  }
+
+  /** A task as saved, for the calls that don't change the state (with the state unreadable: not checked). */
+  function peek(id) {
+    let saved = null;
+    try {
+      saved = readSaved();
+    } catch {
+      return { id: String(id || '') };
+    }
+    const task = (saved?.tasks || []).find((t) => t.id === String(id || ''));
+    if (!task) throw new Error(`There’s no task ${id}. Call app_state for the ids.`);
+    return task;
   }
 
   const live = () => new Map(core.snapshot().map((t) => [t.id, t]));
@@ -134,7 +179,7 @@ function createHeadless({ userDataDir, core, agent, notify }) {
                 state: s?.running ? s.state : 'not running',
                 doing: s?.state === 'working' && s.tool ? s.tool.desc || s.tool.name : undefined,
                 question: s?.state === 'needs' ? `${s.need === 'asking' ? 'Asking you' : 'Needs permission'}: ${s.message || 'in its terminal.'}` : undefined,
-                model: t.model || undefined,
+                model: (t.mode === 'subagents' ? `${SUBAGENTS_LEAD} (lead)` : t.model) || undefined,
                 mode: t.kind === 'claude' ? MODE_NAMES[t.mode] : undefined,
                 worktree: t.worktree && !t.merged ? t.worktree.branch : undefined,
                 done: Boolean(t.doneAt) || undefined,
@@ -145,7 +190,6 @@ function createHeadless({ userDataDir, core, agent, notify }) {
           reminders: agent.state().reminders.map((r) => ({ id: r.id, text: r.text, at: new Date(r.at).toLocaleTimeString() })),
           checks: agent.state().watches.map((w) => ({ id: w.id, check: w.check, every: w.every, looked: w.checks, until: new Date(w.until).toLocaleString() })),
           today: store.today(),
-          voice: 'off (no window)',
         };
       }, { write: false }),
     read_task: ({ task: id, exchanges: count = 3 }) =>
@@ -153,7 +197,7 @@ function createHeadless({ userDataDir, core, agent, notify }) {
         const task = need(store, id);
         const { createTranscript, exchanges, writtenFiles } = await load();
         const transcript = createTranscript();
-        transcript.add(task.kind === 'claude' && task.started ? core.history(task.cwd, task.sessionId) : []);
+        transcript.add(task.kind !== 'shell' && task.started ? core.history(task.cwd, task.sessionId, task.kind, task.id) : []);
         const s = live().get(task.id);
         return {
           id: task.id,
@@ -171,10 +215,11 @@ function createHeadless({ userDataDir, core, agent, notify }) {
               answer: clip(ex.texts.at(-1)?.text || '', 6000),
               stopped: ex.interrupted || undefined,
             })),
-          note: task.kind === 'claude' ? undefined : 'Codex and shells keep no transcript: use read_terminal.',
+          note: task.kind === 'shell' ? 'A shell keeps no transcript: use read_terminal.' : undefined,
         };
       }, { write: false }),
     read_terminal: ({ task: id, lines = 60 }) => {
+      peek(id);
       if (!core.running().includes(String(id))) return { running: false, screen: '(not running: read_task shows what it said)' };
       // No terminal to draw it in here: the raw text, its last lines (redraws may repeat).
       const text = plain(core.tail(String(id)).slice(-40000)).replace(/\r/g, '');
@@ -183,11 +228,13 @@ function createHeadless({ userDataDir, core, agent, notify }) {
     },
     new_task: ({ folder: name, prompt, title, agent: kind, model, effort, worktree: own, mode, hierarchy = false }) =>
       withStore(async (store) => {
-        const { taskModeOf } = await load();
+        const { taskModeOf, taskModelOf, EFFORTS } = await load();
         const project = folder(store, name);
         const value = String(prompt || '');
         const agentKind = ['claude', 'codex', 'shell'].includes(kind) ? kind : 'claude';
-        const label = title || value.replace(/\s+/g, ' ').trim().slice(0, 40) || 'New task';
+        // Named, and its model and effort checked, as the window does it (apptools.js, app.js createTask).
+        const label = title || value.replace(/\s+/g, ' ').trim().slice(0, 40) || (agentKind === 'shell' ? 'Shell' : 'New task');
+        const level = EFFORTS.some((e) => e.id === effort) ? effort : undefined;
         let tree = null;
         if ((own ?? store.state.settings.worktrees) && agentKind !== 'shell') {
           tree = await worktree.create(project.path, label);
@@ -197,7 +244,7 @@ function createHeadless({ userDataDir, core, agent, notify }) {
         const want = agentKind === 'claude' ? taskModeOf(mode, hierarchy) : 'single';
         const lead = want === 'hierarchy';
         const { settings } = store.state;
-        const task = store.newTask(project.id, { kind: agentKind, mode: want, title: label, worktree: tree, model: MODEL_ALIAS[model] ?? (lead ? settings.managerModel : want === 'subagents' ? settings.subagentsModel : undefined), effort: effort ?? (lead ? settings.managerEffort : undefined) });
+        const task = store.newTask(project.id, { kind: agentKind, mode: want, title: label, worktree: tree, model: want === 'subagents' ? SUBAGENTS_LEAD : taskModelOf(agentKind, model) ?? (lead ? settings.managerModel : undefined), effort: level ?? (lead ? settings.managerEffort : undefined) });
         await store.flush();
         await startTask(store, task, value);
         return { id: task.id, title: task.title, folder: project.name };
@@ -205,16 +252,20 @@ function createHeadless({ userDataDir, core, agent, notify }) {
     send_to_task: ({ task: id, text }) =>
       withStore(async (store) => {
         const task = need(store, id);
+        const value = String(text || '').trim();
         if (task.doneAt) store.markDone(task.id, false);
         store.patchTask(task.id, { updatedAt: Date.now() });
-        if (!core.running().includes(task.id)) await startTask(store, task, String(text || ''));
+        // Nothing to say: nothing sent, nothing started (as in the window).
+        if (!value) return { sent: true };
+        if (!core.running().includes(task.id)) await startTask(store, task, value);
         else {
           if (live().get(task.id)?.state === 'needs') throw new Error('It is asking something first: read_terminal, then press_keys if the user said what to choose.');
-          core.say(task.id, String(text || ''));
+          core.say(task.id, value);
         }
         return { sent: true };
       }),
     press_keys: async ({ task: id, keys }) => {
+      peek(id);
       const key = String(id);
       if (!core.running().includes(key)) throw new Error('That task isn’t running.');
       const { keyBytes } = await load();
@@ -227,7 +278,7 @@ function createHeadless({ userDataDir, core, agent, notify }) {
       return { pressed: keys };
     },
     stop_task: ({ task: id }) => {
-      core.stop(String(id));
+      core.stop(peek(id).id);
       return { stopped: true };
     },
     finish_task: ({ task: id }) =>
@@ -235,6 +286,8 @@ function createHeadless({ userDataDir, core, agent, notify }) {
         const task = need(store, id);
         if (live().get(task.id)?.state === 'working') throw new Error('It is still working: stop it first.');
         core.kill(task.id);
+        // A team's sessions end with it (as in the window).
+        if (task.mode === 'hierarchy') core.teamStop(task.id);
         store.markDone(task.id);
         return { done: true };
       }),
@@ -255,10 +308,17 @@ function createHeadless({ userDataDir, core, agent, notify }) {
         return { renamed: value };
       }),
     delete_task: ({ task: id }) =>
-      withStore((store) => {
+      withStore(async (store) => {
         const task = need(store, id);
         core.kill(task.id);
+        core.teamStop(task.id, true);
         store.deleteTask(task.id);
+        // Its worktree goes too (the session has to let go of the folder first).
+        if (task.worktree && !task.merged) {
+          await wait(500);
+          const reply = await worktree.cleanup(task.worktree);
+          return { deleted: true, ...(reply.keptBranch ? { keptBranch: reply.keptBranch } : {}), ...(reply.warning ? { warning: reply.warning } : {}) };
+        }
         return { deleted: true };
       }),
     merge_task: ({ task: id }) =>
@@ -269,6 +329,7 @@ function createHeadless({ userDataDir, core, agent, notify }) {
         const reply = await worktree.merge(task.worktree, `Katana: ${task.title}`);
         if (reply?.error) throw new Error(reply.error);
         store.patchTask(task.id, { merged: true });
+        if (task.mode === 'hierarchy') core.teamStop(task.id);
         store.markDone(task.id);
         return { merged: `${task.worktree.branch} into ${task.worktree.base}`, ...(reply.warning ? { warning: reply.warning } : {}) };
       }),
@@ -278,7 +339,9 @@ function createHeadless({ userDataDir, core, agent, notify }) {
         if (!task.worktree || task.merged) throw new Error('That task has no worktree.');
         core.kill(task.id);
         const reply = await worktree.discard(task.worktree);
+        if (reply?.error) throw new Error(reply.error);
         store.patchTask(task.id, { merged: true });
+        if (task.mode === 'hierarchy') core.teamStop(task.id);
         store.markDone(task.id);
         return { discarded: true, ...(reply.warning ? { warning: reply.warning } : {}) };
       }),
@@ -359,11 +422,12 @@ function createHeadless({ userDataDir, core, agent, notify }) {
     remove_folder: () => {
       throw new Error('Removing a folder needs the user to confirm it in the app, and no window is open.');
     },
-    end_voice: () => ({ already: 'No voice conversation is on (no window is open).' }),
   };
 
   return {
     names: () => Object.keys(run),
+    /** Resolves once no call that changes the state is running or waiting (a window takes over then). */
+    idle: () => queue,
     async call(name, args) {
       const fn = run[name];
       if (!fn) return { error: `There’s no tool called ${name}.` };

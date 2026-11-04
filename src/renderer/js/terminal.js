@@ -1,6 +1,7 @@
 import { Terminal } from '../../../node_modules/@xterm/xterm/lib/xterm.mjs';
 import { FitAddon } from '../../../node_modules/@xterm/addon-fit/lib/addon-fit.mjs';
-import { el } from './util.js';
+import { el, icons } from './util.js';
+import { modelName } from './store.js';
 import { initTeamView } from './teamview.js';
 
 /**
@@ -11,6 +12,11 @@ import { initTeamView } from './teamview.js';
  * first. You can type straight into it: answer Claude's questions, use its
  * slash commands, anything. A task whose session isn't running offers to
  * resume it. A task in hierarchy mode shows its team instead (teamview.js).
+ *
+ * It sits in a console frame: a header saying where the session stands
+ * (working and for how long, idle, waiting for you, not running), who runs
+ * it (Claude or Codex and the model, or the shell) and where, with Stop,
+ * Resume and the text size at hand.
  */
 
 export const FONT = '"Geist Mono", ui-monospace, Consolas, monospace';
@@ -43,10 +49,10 @@ export function theme() {
   return {
     ...ANSI,
     ...(light ? { black: '#3b3b39', white: '#5d5d59', brightWhite: '#1b1b1a', yellow: '#8a6a0c', green: '#2f7a3d', cyan: '#1f6a70', blue: '#2a5fa5', red: '#b4473c', magenta: '#875a94' } : {}),
-    background: v('--panel') || '#141414',
+    background: v('--panel-c') || '#141414',
     foreground: v('--text') || '#ebebeb',
     cursor: v('--text') || '#ebebeb',
-    cursorAccent: v('--panel') || '#141414',
+    cursorAccent: v('--panel-c') || '#141414',
     selectionBackground: light ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.2)',
   };
 }
@@ -55,17 +61,31 @@ export function initTerminal(ctx) {
   const root = document.querySelector('#terminal');
   const { store, api, tasks } = ctx;
   const stage = el('div', { class: 'term-stage' });
+  // The header: where it stands, who runs it and where, and what you can do.
+  const dot = el('span', { class: 'status-dot', 'aria-hidden': 'true' });
+  const stateText = el('span', { class: 'term-state' });
+  const who = el('span', { class: 'term-who' });
+  const where = el('span', { class: 'term-where' });
   const noteText = el('span', { class: 'term-note-text' });
+  const stop = el('button', { class: 'key-btn is-quiet', type: 'button', title: 'Stop (Esc in the session)', onclick: () => stopShown() }, 'Stop');
   const resume = el('button', { class: 'key-btn', type: 'button', text: 'Resume', onclick: () => resumeShown() });
-  // Not running: a slim bar under what it said before, with Resume.
-  const note = el('div', { class: 'term-bar', hidden: true }, noteText, resume);
-  const empty = el('p', { class: 'term-empty', hidden: true, text: 'Open a task to see its terminal.' });
-  root.replaceChildren(stage, note, empty);
+  const sizeButton = (label, step, title) => el('button', { class: 'term-size', type: 'button', title, 'aria-label': title, text: label, onclick: () => resize(step) });
+  const sizes = el('span', { class: 'term-sizes' }, sizeButton('A−', -1, 'Smaller text'), sizeButton('A+', 1, 'Larger text'));
+  const head = el(
+    'header',
+    { class: 'term-head' },
+    el('span', { class: 'term-status' }, dot, stateText),
+    el('span', { class: 'term-id' }, who, where),
+    el('span', { class: 'term-tools' }, noteText, stop, resume, sizes)
+  );
+  const empty = el('div', { class: 'term-empty', hidden: true }, el('span', { class: 'term-empty-mark', html: icons.prompt }), el('p', { text: 'Open a task to see its terminal.' }), el('p', { class: 'term-empty-hint', text: 'Ctrl+` switches between a task and its terminal.' }));
+  const frame = el('div', { class: 'term-frame' }, head, stage);
+  root.replaceChildren(frame, empty);
   // Hierarchy mode: the team as a tree of live mini terminals, in place of the one terminal.
-  const teamView = initTeamView(ctx, root);
-  root.insertBefore(root.lastChild, note);
+  const teamView = initTeamView(ctx, frame);
 
   const terms = new Map(); // task id -> { host, term, fit, ready, early }
+  const watched = new Set(); // tasks whose output comes to this window: a terminal (or its team) open on it
   let shown = null;
   let fontReady = null;
 
@@ -95,7 +115,9 @@ export function initTerminal(ctx) {
     await fontReady;
     term.open(host);
     term.onData((data) => api.task.write(id, data));
-    const tail = await api.task.tail(id);
+    // Its output comes to this window from now on (only tasks with a terminal open: watched); what it printed before, replayed.
+    watched.add(id);
+    const tail = await api.task.watch(id);
     if (tail) term.write(tail);
     for (const chunk of entry.early) term.write(chunk);
     entry.early = [];
@@ -112,7 +134,7 @@ export function initTerminal(ctx) {
 
   function fitShown() {
     const entry = shown && terms.get(shown);
-    if (!entry || entry.host.hidden || root.hidden || stage.hidden) return;
+    if (!entry || entry.host.hidden || root.hidden || frame.hidden || stage.hidden) return;
     try {
       entry.fit.fit();
     } catch {
@@ -123,14 +145,53 @@ export function initTerminal(ctx) {
 
   new ResizeObserver(() => fitShown()).observe(stage);
 
+  const AGENT = { claude: 'Claude Code', codex: 'Codex', shell: 'Shell' };
+  const since = (ms) => {
+    const s = Math.max(0, Math.round(ms / 1000));
+    return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+  };
+  let clock = 0;
+
+  /** The header: its state (kept ticking while it works), who runs it and where, and its buttons. */
   function renderNote() {
     const task = store.task(shown);
-    const running = Boolean(task && tasks.get(task.id).running);
     empty.hidden = Boolean(task);
-    note.hidden = !task || running;
-    if (!task || running) return;
+    frame.hidden = !task;
+    clearTimeout(clock);
+    if (!task) return;
+    const t = tasks.get(task.id);
+    const running = Boolean(t.running);
+    const state = !running ? 'off' : t.state;
+    dot.className = `status-dot${state === 'working' ? ' is-working' : state === 'needs' ? ' is-needs' : state === 'off' ? ' is-off' : ''}`;
+    stateText.textContent = state === 'working' ? `Working · ${since(Date.now() - t.since)}` : state === 'needs' ? 'Waiting for you' : running ? 'Idle' : task.started ? 'Not running' : 'Not started';
+    head.dataset.state = state;
+    const model = task.kind === 'shell' ? '' : modelName(task.model) || task.model || '';
+    who.textContent = [AGENT[task.kind] || 'Task', model].filter(Boolean).join(' · ');
+    const folder = String(task.cwd || '').split(/[\\/]/).filter(Boolean).pop() || '';
+    where.textContent = [folder, task.worktree && !task.merged ? task.worktree.branch : ''].filter(Boolean).join(' · ');
+    where.title = task.cwd || '';
+    // Not running: what Resume does; working: Stop.
+    noteText.textContent = running ? '' : task.started ? 'Resume to pick up where it left off' : '';
+    noteText.hidden = running || !task.started;
+    resume.hidden = running;
     resume.textContent = task.started ? 'Resume' : 'Start';
-    noteText.textContent = task.started ? 'Not running. Resume to pick up where it left off.' : 'Not started yet.';
+    stop.hidden = !running || state !== 'working';
+    if (state === 'working') clock = setTimeout(renderNote, 1000);
+  }
+
+  function stopShown() {
+    const task = store.task(shown);
+    if (!task) return;
+    tasks.stop(task);
+    terms.get(shown)?.term.focus();
+  }
+
+  /** The text size, one step at a time (Settings → Terminal keeps it). */
+  function resize(step) {
+    const now = store.state.settings.terminalFontSize || 12;
+    const next = Math.min(24, Math.max(8, now + step));
+    if (next !== now) store.setSetting('terminalFontSize', next);
+    terms.get(shown)?.term.focus();
   }
 
   /** What a stopped session said, printed as plain terminal text. */
@@ -154,7 +215,8 @@ export function initTerminal(ctx) {
       }
     }
     entry.term.reset();
-    entry.term.write(lines.length ? lines.join('\r\n') : '\x1b[2mNothing yet.\x1b[0m');
+    // (No cursor under what it said: nothing is typed here until it runs again.)
+    entry.term.write(`${lines.length ? lines.join('\r\n') : '\x1b[2mNothing yet.\x1b[0m'}\x1b[?25l`);
     entry.history = true;
   }
 
@@ -192,6 +254,11 @@ export function initTerminal(ctx) {
     const hierarchy = store.task(shown)?.mode === 'hierarchy';
     stage.hidden = hierarchy;
     teamView.show(hierarchy && !root.hidden ? shown : null);
+    // The team's mini terminals (teamview.js) draw its sessions' output: watched from now on (its members' with it).
+    if (hierarchy && !root.hidden && !watched.has(shown)) {
+      watched.add(shown);
+      api.task.watch(shown);
+    }
     for (const [key, entry] of terms) entry.host.hidden = key !== shown;
     renderNote();
     if (!shown || root.hidden || hierarchy) return;
@@ -210,6 +277,7 @@ export function initTerminal(ctx) {
 
   /** A task that went away takes its terminal with it. */
   function drop(id) {
+    if (watched.delete(id)) api.task.unwatch(id);
     const entry = terms.get(id);
     if (!entry) return;
     entry.term.dispose();
@@ -257,6 +325,8 @@ export function initTerminal(ctx) {
       if (entry.term.options.fontSize !== size) entry.term.options.fontSize = size;
     }
     fitShown();
+    // (Its model or folder may have changed.)
+    if (shown && !root.hidden) renderNote();
   });
 
   return { show, drop, retheme, screen, team: teamView, shown: () => shown, size: () => terms.get(shown)?.term };

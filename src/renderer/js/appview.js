@@ -1,11 +1,10 @@
 import { el, icons, truncate } from './util.js';
 
 /**
- * The app viewer (main appview.js runs what's in it): your app, or a web
- * page, filling the main area like a browser. A slim bar along the top
- * stays put: Back on the left, then what runs, its windows, Restart, Stop
- * or Run. No console and no errors here: the app's errors are kept
- * quietly with the task (apperrors.js) and asked about later.
+ * The browser (main appview.js runs what's in it): a web page filling the
+ * main area. A slim bar along the top stays put: Back on the left, then the
+ * page, its windows, Reload, Stop or Open. No console and no errors here: the
+ * page's errors are kept quietly with the task (apperrors.js) and asked about later.
  *
  * The picture is the window's own, streamed (Windows window capture);
  * your mouse and keys over it go back to the window, in its pixels.
@@ -37,12 +36,12 @@ export function createAppPane({ api, onBack, onChange }) {
   const dot = el('span', { class: 'status-dot app-dot', 'aria-hidden': 'true' });
   const label = el('span', { class: 'app-dock-label' });
   const tabs = el('div', { class: 'app-tabs', role: 'tablist' });
-  const restartBtn = button('Restart', icons.restart, () => restart());
+  const restartBtn = button('Reload', icons.restart, () => restart());
   const stopBtn = button('Stop', icons.stop, () => stop());
-  const runBtn = button('Run', icons.play, () => start());
+  const runBtn = button('Open', icons.play, () => start());
   const dock = el(
     'div',
-    { class: 'app-dock', role: 'toolbar', 'aria-label': 'App viewer' },
+    { class: 'app-dock', role: 'toolbar', 'aria-label': 'Browser' },
     backBtn,
     dot,
     label,
@@ -55,7 +54,7 @@ export function createAppPane({ api, onBack, onChange }) {
 
   const screen = el('div', { class: 'app-screen' });
   const note = el('div', { class: 'app-note', role: 'status' });
-  const stage = el('div', { class: 'app-stage', tabindex: '0', 'aria-label': 'Running app' }, screen, note);
+  const stage = el('div', { class: 'app-stage', tabindex: '0', 'aria-label': 'Web page' }, screen, note);
   const element = el('div', { class: 'app-pane', hidden: true }, dock, stage);
 
   const run = () => runs.get(taskId);
@@ -310,13 +309,13 @@ export function createAppPane({ api, onBack, onChange }) {
 
   /* ------------------------------ controls ----------------------------- */
 
-  /** What the task last ran here, to run again: { cwd, command, page }. */
+  /** What the task last showed here, to show again: { cwd, page }. */
   const last = new Map();
 
   async function start(id = taskId, what = last.get(id) || {}) {
     if (!id) return { error: 'Which task?' };
     last.set(id, what);
-    const reply = await api.appview.start(id, what.cwd, what.command || '', what.page || '');
+    const reply = await api.appview.start(id, what.cwd, what.page || '');
     if (reply?.error) {
       // Kept with the task's errors (main logs it); here it's only not running.
       if (id === taskId) render();
@@ -371,8 +370,8 @@ export function createAppPane({ api, onBack, onChange }) {
       element.hidden = true;
       layout();
     },
-    /** Runs the app in a task's folder (`command`, else package.json decides), or shows a web page (`page`); `cwd`: a hierarchy worker's worktree instead. */
-    run: (task, { command = '', page = '', cwd = '' } = {}) => start(task.id, { cwd: cwd || task.cwd, command, page }),
+    /** Shows a web page (`page`); `cwd`: a hierarchy member's folder. */
+    run: (task, { page = '', cwd = '' } = {}) => start(task.id, { cwd: cwd || task.cwd, page }),
     /** After the page's file changed: shown again. */
     reload: (id) => api.appview.reload(id),
     stop,
