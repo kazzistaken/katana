@@ -20,7 +20,7 @@ const path = require('node:path');
 
 // What a window may ask of the daemon.
 const METHODS = new Set([
-  'start', 'say', 'write', 'resize', 'stop', 'answered', 'kill', 'tail', 'watch', 'unwatch', 'running', 'quiet', 'history', 'snapshot', 'killAll', 'status', 'shutdown',
+  'start', 'say', 'write', 'resize', 'size', 'stop', 'answered', 'kill', 'tail', 'watch', 'unwatch', 'running', 'quiet', 'history', 'snapshot', 'killAll', 'status', 'shutdown',
   // Katana, and a window answering one of her tool calls.
   'agentAsk', 'agentStop', 'agentSay', 'agentRemind', 'agentWatch', 'agentDrop', 'agentState', 'toolResult', 'screen',
   // Whether the window's page can take her tool calls now (it loads, reloads, crashes).

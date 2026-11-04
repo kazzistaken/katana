@@ -3,6 +3,7 @@ import { FitAddon } from '../../../node_modules/@xterm/addon-fit/lib/addon-fit.m
 import { el, icons } from './util.js';
 import { modelName } from './store.js';
 import { initTeamView } from './teamview.js';
+import { inputBoxRows } from './promptmenu.js';
 
 /**
  * The >_ view: the open task's real terminal — Claude Code, Codex or the
@@ -13,10 +14,10 @@ import { initTeamView } from './teamview.js';
  * slash commands, anything. A task whose session isn't running offers to
  * resume it. A task in hierarchy mode shows its team instead (teamview.js).
  *
- * It sits in a console frame: a header saying where the session stands
- * (working and for how long, idle, waiting for you, not running), who runs
- * it (Claude or Codex and the model, or the shell) and where, with Stop,
- * Resume and the text size at hand.
+ * What it prints stands on the scene, with the same prompt bar as the chat under
+ * it: the session's own input box isn't shown, and an empty bar's arrows, Enter,
+ * Tab and Esc go to the session for its menus. Above the bar, a line saying where
+ * the session stands, who runs it and where, with Stop, Resume and the text size.
  */
 
 export const FONT = '"Geist Mono", ui-monospace, Consolas, monospace';
@@ -48,11 +49,11 @@ export function theme() {
   const light = document.body.dataset.theme === 'light';
   return {
     ...ANSI,
-    ...(light ? { black: '#3b3b39', white: '#5d5d59', brightWhite: '#1b1b1a', yellow: '#8a6a0c', green: '#2f7a3d', cyan: '#1f6a70', blue: '#2a5fa5', red: '#b4473c', magenta: '#875a94' } : {}),
     background: v('--panel-c') || '#141414',
     foreground: v('--text') || '#ebebeb',
     cursor: v('--text') || '#ebebeb',
     cursorAccent: v('--panel-c') || '#141414',
+    ...(light ? { black: '#3b3b39', white: '#5d5d59', brightWhite: '#1b1b1a', yellow: '#8a6a0c', green: '#2f7a3d', cyan: '#1f6a70', blue: '#2a5fa5', red: '#b4473c', magenta: '#875a94' } : {}),
     selectionBackground: light ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.2)',
   };
 }
@@ -79,7 +80,47 @@ export function initTerminal(ctx) {
     el('span', { class: 'term-tools' }, noteText, stop, resume, sizes)
   );
   const empty = el('div', { class: 'term-empty', hidden: true }, el('span', { class: 'term-empty-mark', html: icons.prompt }), el('p', { text: 'Open a task to see its terminal.' }), el('p', { class: 'term-empty-hint', text: 'Ctrl+` switches between a task and its terminal.' }));
-  const frame = el('div', { class: 'term-frame' }, head, stage);
+  // The prompt bar: words go to the session as a message; with none, keys go to whatever it's showing.
+  const box = el('textarea', { class: 'term-input', rows: 1, spellcheck: 'false', 'aria-label': 'Message or command' });
+  const mic = el('button', { class: 'mic-btn dictate-btn', type: 'button', title: 'Dictate (Ctrl+Shift+M)', 'aria-label': 'Dictate', 'aria-pressed': 'false', html: icons.mic, onpointerdown: (event) => event.preventDefault(), onclick: () => ctx.dictate() });
+  const bar = el('form', { class: 'composer term-composer' }, box, mic);
+  bar.addEventListener('submit', (event) => {
+    event.preventDefault();
+    sendBar();
+  });
+  const PASS_KEYS = { ArrowUp: '\x1b[A', ArrowDown: '\x1b[B', ArrowLeft: '\x1b[D', ArrowRight: '\x1b[C', Tab: '\t', Escape: '\x1b', Enter: '\r' };
+  box.addEventListener('keydown', (event) => {
+    if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.key === 'Enter' && !event.shiftKey && box.value.trim()) {
+      event.preventDefault();
+      sendBar();
+      return;
+    }
+    if (box.value || event.shiftKey || !shown) return;
+    const running = tasks.get(shown).running;
+    const waiting = running && tasks.get(shown).state === 'needs';
+    const keys = PASS_KEYS[event.key] || (waiting && /^[1-9]$/.test(event.key) ? event.key : '');
+    if (!keys || !running) return;
+    event.preventDefault();
+    event.stopPropagation();
+    api.task.write(shown, keys);
+  });
+  async function sendBar() {
+    const text = box.value.trim();
+    const task = store.task(shown);
+    if (!text || !task) return;
+    box.value = '';
+    const entry = terms.get(task.id);
+    // A stopped session's words give way to the session itself.
+    if (entry?.history) {
+      entry.term.reset();
+      entry.history = false;
+    }
+    const reply = await ctx.sendToTask(task.id, text);
+    if (reply?.error) noteText.textContent = reply.error;
+    renderNote();
+  }
+  const frame = el('div', { class: 'term-frame' }, stage, head, bar);
   root.replaceChildren(frame, empty);
   // Hierarchy mode: the team as a tree of live mini terminals, in place of the one terminal.
   const teamView = initTeamView(ctx, frame);
@@ -99,7 +140,8 @@ export function initTerminal(ctx) {
     const term = new Terminal({
       fontFamily: FONT,
       fontSize: store.state.settings.terminalFontSize || 12,
-      lineHeight: 1.2,
+      lineHeight: 1.32,
+      allowTransparency: true,
       cursorBlink: false,
       scrollback: 8000,
       theme: theme(),
@@ -115,6 +157,24 @@ export function initTerminal(ctx) {
     await fontReady;
     term.open(host);
     term.onData((data) => api.task.write(id, data));
+    // Claude's or Codex's own input box stays out of sight (the bar below is the one to use), and typing goes to the bar.
+    if (store.task(id)?.kind !== 'shell') {
+      const hide = el('style');
+      host.append(hide);
+      const hideBox = () => {
+        const buffer = term.buffer.active;
+        const rows = Array.from({ length: term.rows }, (_, i) => buffer.getLine(buffer.viewportY + i)?.translateToString(true) ?? '');
+        const span = inputBoxRows(rows);
+        const rule = span ? `.xterm-rows > div:nth-child(n + ${span[0] + 1}):nth-child(-n + ${span[1] + 1}) { visibility: hidden; }` : '';
+        if (hide.textContent !== rule) hide.textContent = rule;
+      };
+      term.onRender(hideBox);
+      term.onScroll(hideBox);
+      term.attachCustomKeyEventHandler((event) => {
+        if (event.type === 'keydown' && event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) box.focus();
+        return event.key.length !== 1 || event.ctrlKey || event.altKey || event.metaKey;
+      });
+    }
     // Its output comes to this window from now on (only tasks with a terminal open: watched); what it printed before, replayed.
     watched.add(id);
     const tail = await api.task.watch(id);
@@ -176,6 +236,8 @@ export function initTerminal(ctx) {
     resume.hidden = running;
     resume.textContent = task.started ? 'Resume' : 'Start';
     stop.hidden = !running || state !== 'working';
+    const shell = task.kind === 'shell';
+    box.placeholder = shell ? 'Run a command…' : running ? `Message ${AGENT[task.kind] || 'the session'}, or a / command…` : task.started ? 'Write to resume…' : 'Write to start…';
     if (state === 'working') clock = setTimeout(renderNote, 1000);
   }
 
@@ -183,7 +245,7 @@ export function initTerminal(ctx) {
     const task = store.task(shown);
     if (!task) return;
     tasks.stop(task);
-    terms.get(shown)?.term.focus();
+    box.focus();
   }
 
   /** The text size, one step at a time (Settings → Terminal keeps it). */
@@ -191,7 +253,6 @@ export function initTerminal(ctx) {
     const now = store.state.settings.terminalFontSize || 12;
     const next = Math.min(24, Math.max(8, now + step));
     if (next !== now) store.setSetting('terminalFontSize', next);
-    terms.get(shown)?.term.focus();
   }
 
   /** What a stopped session said, printed as plain terminal text. */
@@ -238,7 +299,7 @@ export function initTerminal(ctx) {
     const reply = await tasks.start(task, '', { cols: entry.term.cols, rows: entry.term.rows });
     if (reply?.error) noteText.textContent = reply.error;
     renderNote();
-    entry.term.focus();
+    (task.kind === 'shell' ? entry.term : box).focus();
   }
 
   tasks.on(({ id, type }) => {
@@ -253,6 +314,7 @@ export function initTerminal(ctx) {
     shown = store.task(id) ? id : null;
     const hierarchy = store.task(shown)?.mode === 'hierarchy';
     stage.hidden = hierarchy;
+    bar.hidden = hierarchy;
     teamView.show(hierarchy && !root.hidden ? shown : null);
     // The team's mini terminals (teamview.js) draw its sessions' output: watched from now on (its members' with it).
     if (hierarchy && !root.hidden && !watched.has(shown)) {
@@ -271,7 +333,8 @@ export function initTerminal(ctx) {
     entry.host.hidden = false;
     requestAnimationFrame(() => {
       fitShown();
-      entry.term.focus();
+      if (store.task(shown)?.kind === 'shell') entry.term.focus();
+      else box.focus();
     });
   }
 
@@ -285,6 +348,9 @@ export function initTerminal(ctx) {
     terms.delete(id);
   }
 
+  // What the last off-screen look found: the same output reads the same.
+  let read = { id: '', output: '', lines: [] };
+
   /**
    * A task's screen as text, its last `lines` (Katana reads it): its own
    * terminal when it has one, otherwise its output replayed off screen.
@@ -294,11 +360,14 @@ export function initTerminal(ctx) {
     let term = entry && entry.ready && !entry.history ? entry.term : null;
     let scratch = null;
     if (!term) {
-      const size = terms.get(shown)?.term;
-      scratch = new Terminal({ cols: size?.cols || 120, rows: size?.rows || 34, scrollback: 2000, allowProposedApi: false });
+      // (At its real size: what it drew only reads right there.)
       const output = await api.task.tail(id);
+      if (read.id === id && read.output === output) return read.lines.slice(-Math.max(1, lines)).join('\n');
+      const size = (await api.task.size?.(id).catch(() => null)) || terms.get(shown)?.term;
+      scratch = new Terminal({ cols: size?.cols || 120, rows: size?.rows || 34, scrollback: 2000, allowProposedApi: false });
       await new Promise((resolve) => scratch.write(output || '', resolve));
       term = scratch;
+      read = { id, output, lines: [] };
     }
     const buffer = term.buffer.active;
     const out = [];
@@ -310,6 +379,7 @@ export function initTerminal(ctx) {
     }
     scratch?.dispose();
     while (out.length && !out.at(-1).trim()) out.pop();
+    if (scratch) read.lines = out;
     return out.slice(-Math.max(1, lines)).join('\n');
   }
 

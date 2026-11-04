@@ -541,6 +541,7 @@ ipcMain.on('task:write', (_event, { id, data } = {}) => daemon.notify('write', S
 ipcMain.on('task:resize', (_event, { id, cols, rows } = {}) => daemon.notify('resize', String(id), cols, rows));
 ipcMain.handle('task:stop', (_event, id) => toDaemon('stop', String(id)));
 ipcMain.handle('task:answered', (_event, id) => toDaemon('answered', String(id)));
+ipcMain.handle('task:size', (_event, id) => toDaemon('size', String(id)));
 ipcMain.handle('task:kill', (_event, id) => toDaemon('kill', String(id)));
 ipcMain.handle('task:tail', (_event, id) => toDaemon('tail', String(id)).then((tail) => (typeof tail === 'string' ? tail : '')));
 // A terminal opened on a task: its output (task:data) comes to the window from now on, and what it printed so far.

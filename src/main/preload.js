@@ -142,6 +142,7 @@ contextBridge.exposeInMainWorld('api', {
     resize: (id, cols, rows) => ipcRenderer.send('task:resize', { id, cols, rows }),
     stop: (id) => ipcRenderer.invoke('task:stop', id),
     answered: (id) => ipcRenderer.invoke('task:answered', id),
+    size: (id) => ipcRenderer.invoke('task:size', id),
     kill: (id) => ipcRenderer.invoke('task:kill', id),
     tail: (id) => ipcRenderer.invoke('task:tail', id),
     // A terminal opened on a task: its output comes (onData) from now on; what it printed so far.

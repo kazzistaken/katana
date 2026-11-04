@@ -438,10 +438,13 @@ function createCore({ userDataDir, emit, toWindow = () => false, block = false, 
     write(id, data) {
       const key = String(id);
       tasks.write(key, data);
-      // Enter or a choice's number typed while it asks: that's the answer.
-      if (states.get(key).state === 'needs' && ANSWER.test(String(data))) states.answered(key);
+      // Enter or a choice's number typed while it asks: that's the answer. (Its own question tools say when they've
+      // been answered: one can take several steps, ticking boxes or going through its questions.)
+      const now = states.get(key);
+      if (now.state === 'needs' && now.need !== 'asking' && ANSWER.test(String(data))) states.answered(key);
     },
     resize: (id, cols, rows) => tasks.resize(String(id), cols, rows),
+    size: (id) => tasks.size(String(id)),
     /** Esc, as in Claude Code (Ctrl+C for a shell). */
     stop(id) {
       const key = String(id);

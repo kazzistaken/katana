@@ -1,5 +1,6 @@
 import { el, icons, placeNear, tokens, popIn, leave, motionOn, keepInStep, SPRING, EASE_OUT } from './util.js';
 import { commandsFor, namingCommand, matchCommands, readCommand, opensTerminal } from './slashcommands.js';
+import { parsePromptMenu, arrowKeys } from './promptmenu.js';
 import { MODELS, CODEX_MODELS, EFFORTS, modelName as nameOfModel } from './store.js';
 import { browserGame, exchanges, liveSubagents, splitImages, writtenFiles, SUBAGENTS_LEAD } from './transcript.js';
 import { dither, paintScene } from './dither.js';
@@ -230,7 +231,121 @@ export function initChatView(ctx) {
     return el('span', { class: 'thinking-dots', 'aria-hidden': 'true' }, el('i'), el('i'), el('i'));
   }
 
-  function workBlock({ head, sub, since, tokensNow, usageNow, onStop, needs, waiting = 'Needs you', dots = false, subagents = null }) {
+  /* A question the session is asking on its terminal, shown here and answered from here (promptmenu.js). */
+  const CANT_READ_MS = 6000; // with nothing readable by then, the terminal is offered
+  const asking = { id: null, menu: null, seen: '', since: 0, timer: 0, typing: false, busy: false };
+  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const readMenu = async (id) => parsePromptMenu(await ctx.readScreen(id, 60).catch(() => ''));
+
+  function stopAsking() {
+    clearTimeout(asking.timer);
+    if (asking.typing) input.placeholder = placeholderBefore;
+    Object.assign(asking, { id: null, menu: null, seen: '', typing: false, busy: false });
+  }
+
+  async function lookForQuestion() {
+    const id = asking.id;
+    if (!id) return;
+    if (view.type !== 'task' || view.id !== id || tasks.get(id).state !== 'needs') return stopAsking();
+    const menu = await readMenu(id);
+    if (asking.id !== id) return undefined;
+    const seen = JSON.stringify(menu);
+    const late = !menu && !asking.saidLate && Date.now() - asking.since > CANT_READ_MS;
+    if (seen !== asking.seen || late) {
+      asking.saidLate = late || asking.saidLate;
+      asking.seen = seen;
+      asking.menu = menu;
+      // (What you were typing an answer to has gone.)
+      if (asking.typing && !menu?.options.some((option) => option.free)) {
+        asking.typing = false;
+        input.placeholder = placeholderBefore;
+      }
+      later();
+    }
+    asking.timer = setTimeout(lookForQuestion, 300);
+    return undefined;
+  }
+
+  function watchQuestion(id) {
+    if (asking.id === id) return;
+    stopAsking();
+    Object.assign(asking, { id, since: Date.now(), saidLate: false });
+    lookForQuestion();
+  }
+
+  /** Moves its arrow to an option and takes it, with the words typed for it if it wants them. */
+  async function answerQuestion(index, words = '') {
+    const id = asking.id;
+    if (!id || asking.busy) return;
+    asking.busy = true;
+    // (Where the arrow really is now, not when this was last drawn.)
+    const menu = (await readMenu(id)) || asking.menu;
+    if (menu) {
+      for (const key of arrowKeys(menu.selected, index)) {
+        api.task.write(id, key);
+        await pause(45);
+      }
+      if (words) {
+        api.task.write(id, words);
+        await pause(150);
+      }
+      api.task.write(id, '\r');
+    }
+    await pause(120);
+    asking.busy = false;
+  }
+
+  let placeholderBefore = '';
+  /** Choosing "Type something": the prompt bar takes the answer. */
+  function typeAnswer() {
+    if (!asking.typing) placeholderBefore = input.placeholder;
+    asking.typing = true;
+    input.placeholder = 'Type your answer…';
+    input.focus();
+  }
+
+  /** The answer typed in the prompt bar, if a question is waiting for one. */
+  function answerTyped() {
+    const free = asking.menu?.options.findIndex((option) => option.free) ?? -1;
+    const words = input.value.trim();
+    if (free < 0 || !words || !asking.typing) return false;
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    answerQuestion(free, words);
+    return true;
+  }
+
+  /** One of its choices, as a button of the kind around it. On press: the view redraws as it changes. */
+  function choiceButton(option, index, menu) {
+    const choose = () => (option.free ? typeAnswer() : answerQuestion(index));
+    return el(
+      'button',
+      {
+        class: `key-btn choice${index === menu.selected ? ' is-on' : ''}${option.checked ? ' is-ticked' : ''}${option.quiet ? ' is-quiet' : ''}`,
+        type: 'button',
+        onpointerdown: (event) => event.button === 0 && choose(),
+        onclick: (event) => event.detail === 0 && choose(),
+      },
+      option.checked === null ? null : el('span', { class: 'choice-box', 'aria-hidden': 'true', text: option.checked ? '✓' : '' }),
+      el('span', { class: 'choice-words' }, el('span', { class: 'choice-label', text: option.label }), option.note ? el('span', { class: 'choice-note', text: option.note }) : null),
+      index < 9 ? el('kbd', { text: String(index + 1) }) : null
+    );
+  }
+
+  // A choice's number, while nothing is being typed.
+  document.addEventListener('keydown', (event) => {
+    const menu = asking.menu;
+    if (!menu || event.ctrlKey || event.altKey || event.metaKey || !/^[1-9]$/.test(event.key)) return;
+    const box = document.activeElement;
+    if (box instanceof HTMLElement && box.matches('input, textarea') && box.value.trim()) return;
+    if (root.hidden || document.querySelector('.dialog:not(.is-leaving), .pop:not(.is-leaving)')) return;
+    const option = menu.options[Number(event.key) - 1];
+    if (!option) return;
+    event.preventDefault();
+    option.free ? typeAnswer() : answerQuestion(Number(event.key) - 1);
+  });
+
+  function workBlock({ head, sub, since, tokensNow, usageNow, onStop, needs, waiting = 'Needs you', dots = false, subagents = null, menu = null, offerTerminal = false }) {
     const statusText = el('span', { class: 'ex-status-text' });
     const headline = el('h2', { class: 'ex-head', 'data-slide': 'head' }, head, dots ? thinkingDots() : null);
     const node = el(
@@ -240,12 +355,13 @@ export function initChatView(ctx) {
       subagents
         ? el('div', { class: 'ex-work-title' }, headline, statusText)
         : [el('div', { class: 'ex-status' }, el('span', { class: `status-dot ${needs ? 'is-needs' : 'is-working'}`, 'aria-hidden': 'true' }), statusText), headline],
-      sub ? el('p', { class: 'ex-sub', text: sub }) : null,
+      sub ? el('p', { class: `ex-sub${menu ? ' is-detail' : ''}`, text: sub }) : null,
+      menu ? el('div', { class: `ex-choices${menu.options.some((option) => option.note) ? ' has-notes' : ''}` }, menu.options.map((option, i) => choiceButton(option, i, menu))) : null,
       subagents,
       el(
         'div',
         { class: 'ex-actions', 'data-slide': 'actions' },
-        needs ? keyButton('Open terminal', 'Ctrl+`', 'Answer it in the terminal (Ctrl+`)', () => ctx.showTerminal()) : null,
+        offerTerminal ? keyButton('Answer in terminal', 'Ctrl+`', 'Couldn’t read this one: answer it in the terminal (Ctrl+`)', () => ctx.showTerminal()) : null,
         // On press, not click: the view redraws as the task works, and a
         // redraw between press and release would swallow the click.
         el(
@@ -312,8 +428,7 @@ export function initChatView(ctx) {
     const filesEl = el('div', { class: 'ex-files' });
     const mediaEl = el('div', { class: 'ex-media' });
     const nodes = [
-      // (macOS: no status line once it's finished; the headline takes its place, the time in its tooltip.)
-      document.body.dataset.style === 'macos' ? null : status(`${state} · ${ago(at)}`, error ? 'failed' : ''),
+      // (No status line once it's finished: the headline takes its place, the time in its tooltip.)
       el('h2', { class: `ex-head${error ? ' is-error' : ''}`, title: `${state} · ${ago(at)}` }, inline(head || (state === 'Stopped' ? 'Stopped.' : 'Done.'))),
       filesEl,
       mediaEl,
@@ -409,13 +524,18 @@ export function initChatView(ctx) {
       const tool = t.tool;
       // The sub-agent's own call: its row already says this.
       const rowSays = calls.length && tool && (tool.name === 'Agent' || tool.name === 'Task' || calls.some((c) => c.what === tool.desc));
+      if (t.state === 'needs') watchQuestion(current.id);
+      else if (asking.id === current.id) stopAsking();
+      const menu = t.state === 'needs' && asking.id === current.id ? asking.menu : null;
       node.append(
         workBlock({
           needs: t.state === 'needs',
+          menu,
+          offerTerminal: t.state === 'needs' && !menu && asking.saidLate,
           waiting: tasks.waiting(current.id),
           // Working while a tool runs (what for, below), Thinking between them.
-          head: t.state === 'needs' ? `${AGENT_NAME[current.kind] || 'Claude'} ${t.need === 'asking' ? 'is asking you' : 'needs your permission'}` : tool || calls.some((c) => c.state === 'running') ? 'Working' : 'Thinking',
-          sub: t.state === 'needs' ? t.message : rowSays ? '' : tool ? tool.desc || `${tool.name} ${tool.detail || ''}`.trim() : '',
+          head: t.state === 'needs' ? menu?.question || (t.need === 'asking' && t.message) || `${AGENT_NAME[current.kind] || 'Claude'} ${t.need === 'asking' ? 'is asking you' : 'needs your permission'}` : tool || calls.some((c) => c.state === 'running') ? 'Working' : 'Thinking',
+          sub: t.state === 'needs' ? (menu ? menu.detail : t.need === 'asking' ? '' : t.message) : rowSays ? '' : tool ? tool.desc || `${tool.name} ${tool.detail || ''}`.trim() : '',
           subagents: subagentRows(calls),
           since: t.since,
           tokensNow: () => t.transcript.tokensSince(t.since),
@@ -536,7 +656,7 @@ export function initChatView(ctx) {
   const agentKey = () => {
     const messages = store.state.agent.messages;
     const { dataset } = document.body;
-    return [store.state.settings.currentProject, dataset.theme, dataset.style, dataset.size, dataset.motion, messages.length, messages.at(-1)?.at, messages.at(-1)?.text?.length].join('|');
+    return [store.state.settings.currentProject, dataset.theme, dataset.size, messages.length, messages.at(-1)?.at, messages.at(-1)?.text?.length].join('|');
   };
   let agentDrawn = '';
   let agentQueued = 0;
@@ -1602,6 +1722,7 @@ export function initChatView(ctx) {
 
   async function submit() {
     closeSlash();
+    if (answerTyped()) return;
     if ((!input.value.trim() && !attached.length) || blocked) return;
     if (view.type === 'agent') {
       agent.ask(takeMessage());

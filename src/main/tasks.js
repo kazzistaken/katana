@@ -616,6 +616,11 @@ function createTasks({ send, hooksDir, settingsFile, found }) {
     say,
     write,
     resize,
+    /** Its terminal's size, for reading what it has drawn. */
+    size: (id) => {
+      const proc = tasks.get(id)?.proc;
+      return proc ? { cols: proc.cols, rows: proc.rows } : null;
+    },
     kill,
     killAll: () => [...tasks.keys()].forEach(kill),
     tail,

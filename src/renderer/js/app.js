@@ -760,6 +760,7 @@ const terminal = initTerminal(ctx);
 const settingsPage = initSettingsPage(ctx);
 const sidebar = initSidebar(ctx);
 const voice = initVoice(ctx);
+ctx.readScreen = (id, lines) => terminal.screen(id, lines);
 
 const appTools = createAppTools({
   api,
